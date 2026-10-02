@@ -1641,10 +1641,14 @@ async function renderCards(){
 /* ===================== 路由 / 事件 ===================== */
 function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+id));
   window.scrollTo(0,0);const m=document.querySelector('.page.on');if(m)m.scrollTop=0}
-document.getElementById('go-out').onclick=()=>{recType='out';show('rec');updUI()};
-document.getElementById('go-ret').onclick=()=>{recType='ret';show('rec');updUI()};
-document.getElementById('go-scan').onclick=()=>{recType='scan';show('rec');updUI();
-  setTimeout(()=>{if(!standby)startStandby()},60)};
+// 从首页三个入口进来就直接开摄像头，不用再点一次中间按钮
+async function enterRec(type){
+  recType=type;show('rec');updUI();
+  if(!standby)await startStandby();
+}
+document.getElementById('go-out').onclick=()=>enterRec('out');
+document.getElementById('go-ret').onclick=()=>enterRec('ret');
+document.getElementById('go-scan').onclick=()=>enterRec('scan');
 document.getElementById('goset').onclick=()=>show('set');
 document.getElementById('gofields').onclick=()=>{renderRules();show('fields')};
 document.getElementById('bclosecam').onclick=async()=>{
@@ -1669,7 +1673,7 @@ document.getElementById('row-fields').onclick=()=>{renderRules();show('fields')}
 document.getElementById('bprint').onclick=()=>window.print();
 document.getElementById('st-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('row-store').onclick=()=>{show('store');updQuota();bkInfo()};
-document.getElementById('st-engine').onclick=()=>{show('rec');updUI()};
+document.getElementById('st-engine').onclick=()=>enterRec(recType);
 document.getElementById('row-ttstest').onclick=()=>{
   if(!opts.tts){toast('先打开语音播报');return}
   say('开始录像，单号 S F 5 1 4 0，第 1 件，录像已保存',true);toast('已试听')};

@@ -1,0 +1,5 @@
+packingproof.keystore
+keystore.properties
+node_modules/
+www/
+android/local.properties

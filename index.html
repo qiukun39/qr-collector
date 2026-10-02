@@ -579,9 +579,23 @@ function sfx(kind){
   else if(kind==='bad')tone(300,.2,.3);
   else if(kind==='dup')tone(520,.14);
 }
+// 跑在 Capacitor 原生壳里时，用原生 TTS —— 浏览器的 speechSynthesis 在
+// 麦克风开启时容易被系统压掉，原生接口没有这个问题
+const NATIVE=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+function nativeTTS(){try{return window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.TextToSpeech}catch(e){return null}}
 let voices=[],ttsReady=false;
 function initTTS(){
-  if(!('speechSynthesis' in window)){document.getElementById('ttsinfo').textContent='此浏览器不支持语音合成';return}
+  const el0=document.getElementById('ttsinfo');
+  if(NATIVE&&nativeTTS()){
+    ttsReady=true;
+    if(el0)el0.textContent='使用系统原生语音（App 版，不受浏览器限制）';
+    nativeTTS().getSupportedLanguages().then(r=>{
+      const zh=(r&&r.languages||[]).filter(l=>/^zh/i.test(l));
+      if(el0)el0.textContent='原生语音 · 中文：'+(zh.length?zh.join(' '):'系统未装中文语音');
+    }).catch(()=>{});
+    return;
+  }
+  if(!('speechSynthesis' in window)){if(el0)el0.textContent='此浏览器不支持语音合成';return}
   const load=()=>{try{voices=speechSynthesis.getVoices()||[]}catch(e){voices=[]}
     const zh=voices.filter(v=>/^zh/i.test(v.lang||''));
     ttsReady=zh.length>0;
@@ -616,6 +630,15 @@ function speakNow(text,tries){
 }
 function say(text,interrupt){
   if(!opts.tts||!text)return;
+  const N=NATIVE&&nativeTTS();
+  if(N){
+    const go=()=>N.speak({text:String(text),lang:'zh-CN',rate:+opts.ttsrate||1,
+        pitch:1,volume:1,category:'ambient'})
+      .then(()=>ttsNote({text,ev:'native-end'}))
+      .catch(e=>ttsNote({text,ev:'native-error:'+(e&&e.message||e)}));
+    if(interrupt)N.stop().then(go).catch(go); else go();
+    return;
+  }
   if(!('speechSynthesis' in window)){ttsNote({text,ev:'浏览器不支持'});return}
   try{
     // Chrome 坑：cancel() 后立刻 speak() 会把这条吞掉，必须隔一拍
@@ -1332,7 +1355,7 @@ document.getElementById('row-ttstest').onclick=()=>{
   say('开始录像，单号 S F 5 1 4 0，第 1 件，录像已保存',true);toast('已试听')};
 document.getElementById('row-ttsdiag').onclick=async()=>{
   const el=document.getElementById('ttsdiag');
-  const sup='speechSynthesis' in window;
+  const sup=(NATIVE&&nativeTTS())?true:('speechSynthesis' in window);
   const zh=voices.filter(v=>/^zh/i.test(v.lang||''));
   el.textContent='检测中…';
   ttsLog=[];
@@ -1340,8 +1363,9 @@ document.getElementById('row-ttsdiag').onclick=async()=>{
   await new Promise(r=>setTimeout(r,1600));
   const last=ttsLog.find(x=>/start|error|throw|不支持|未发声/.test(x.ev));
   const lines=[
-    '支持 speechSynthesis：'+(sup?'是':'否'),
-    '中文语音：'+(zh.length?zh.map(v=>v.name).join(' / '):'无（安卓需装「Google 文字转语音」）'),
+    '运行环境：'+(NATIVE?'原生 App（Capacitor）':'浏览器'),
+    '语音引擎：'+((NATIVE&&nativeTTS())?'系统原生 TTS':(sup?'浏览器 speechSynthesis':'不可用')),
+    '中文语音：'+(NATIVE?'见上方说明':(zh.length?zh.map(v=>v.name).join(' / '):'无（安卓需装「Google 文字转语音」）')),
     '麦克风当前：'+(micOpen()?'已开启（录音中）':'未开启'),
     '本次结果：'+(last?(last.ev+(last.ms!=null?(' @'+last.ms+'ms'):'')):'没有任何回调（被静默吞掉）')
   ];

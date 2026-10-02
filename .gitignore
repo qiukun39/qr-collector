@@ -1,2 +1,13 @@
 .DS_Store
 *.csv
+
+# Capacitor
+app/node_modules/
+app/www/
+app/android/local.properties
+app/android/keystore.properties
+app/packingproof.keystore
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/capacitor-cordova-android-plugins/

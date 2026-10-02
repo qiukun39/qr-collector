@@ -1,0 +1,13 @@
+{
+  "appId": "com.qk.packingproof",
+  "appName": "打包留证",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

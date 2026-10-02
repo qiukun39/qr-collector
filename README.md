@@ -3,7 +3,12 @@
 手机浏览器里跑的打包出库留证工具：**扫快递面单自动录像 → 录像中扫商品码提纯序列号并抓拍 → 按单号归档**。
 纯前端单页 PWA，数据只存在手机本地（IndexedDB），不上传任何服务器。
 
-👉 **https://qiukun39.github.io/qr-collector/**
+👉 网页版 **https://qiukun39.github.io/qr-collector/**
+📱 安卓 App **[packing-proof.apk](packing-proof.apk)**（[直接下载](https://qiukun39.github.io/qr-collector/packing-proof.apk)）
+
+两者**代码同一份**。App 版多了：系统原生语音播报（不受麦克风占用影响）、
+安装时一次性授权、必然生效的屏幕常亮、无地址栏、资源直接打进包。
+构建方式见 [app/README.md](app/README.md)。
 
 ## 工作流
 

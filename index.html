@@ -101,7 +101,20 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 /* ====== 录像页：全屏相机 ====== */
 #p-rec{position:fixed;inset:0;background:#000;overflow:hidden;z-index:60}
 #p-rec.on{display:block}
-#cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+#cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0b0d11}
+#camoff{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;color:#6f7a8c;text-align:center;padding:0 32px;
+  background:radial-gradient(circle at 50% 42%,#171b22 0%,#0b0d11 70%)}
+#p-rec:not([data-standby="1"]) #camoff{display:flex}
+#camoff .ic{width:92px;height:92px;border-radius:26px;background:#1d222b;border:1px solid #2a313c;
+  display:flex;align-items:center;justify-content:center;font-size:40px}
+#camoff .t1{font-size:17px;font-weight:600;color:#aeb8c7}
+#camoff .t2{font-size:13px;line-height:1.8}
+/* 摄像头没开时：左上水印、底部状态条都在重复中间那句话，藏起来 */
+#p-rec:not([data-standby="1"]) #wm,
+#p-rec:not([data-standby="1"]) #pill{display:none}
+/* 需要摄像头的侧边按钮灰掉，避免点了只弹一句「先开始待机」 */
+#p-rec:not([data-standby="1"]) .side button.needcam{opacity:.32}
 .ovl{position:absolute;inset:0;pointer-events:none}
 .ovl>*{pointer-events:auto}
 /* 左上水印预览（所见即所烧） */
@@ -140,12 +153,22 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 .ctrls .mini-btn i{width:44px;height:44px;border-radius:50%;background:rgba(40,40,44,.62);
   display:flex;align-items:center;justify-content:center;font-size:18px;font-style:normal}
 .ctrls .mini-btn[disabled]{opacity:.3}
-#bbig{width:76px;height:76px;border-radius:50%;border:4px solid rgba(255,255,255,.9);background:rgba(255,255,255,.18);
-  display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-#bbig .inner{width:56px;height:56px;border-radius:50%;background:#fff;transition:all .2s}
-#bbig.standby .inner{width:26px;height:26px;background:#fff;animation:pulse 1.4s infinite}
-#bbig.rec .inner{width:30px;height:30px;border-radius:7px;background:var(--red)}
-@keyframes pulse{50%{opacity:.35}}
+.bigwrap{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 auto}
+#bbig{width:76px;height:76px;border-radius:50%;border:4px solid rgba(255,255,255,.88);
+  background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;padding:0}
+#bbig .inner{width:56px;height:56px;border-radius:50%;background:#fff;transition:all .18s;
+  display:flex;align-items:center;justify-content:center;font-size:27px;line-height:1}
+/* 未启动：白底相机图标，一眼看出是「开摄像头」而不是「播放」 */
+#bbig.idle{border-color:rgba(255,255,255,.7)}
+#bbig.idle .inner{background:#fff}
+/* 待机：空心环 + 呼吸点，表示在等码 */
+#bbig.standby{border-color:var(--green)}
+#bbig.standby .inner{width:22px;height:22px;background:var(--green);font-size:0;animation:pulse 1.4s infinite}
+/* 录制：红方块 */
+#bbig.rec{border-color:rgba(255,255,255,.95)}
+#bbig.rec .inner{width:30px;height:30px;border-radius:8px;background:var(--red);font-size:0}
+#biglbl{font-size:12.5px;color:rgba(255,255,255,.88);font-weight:500;white-space:nowrap}
+@keyframes pulse{50%{opacity:.3}}
 .modeline{font-size:11.5px;color:rgba(255,255,255,.72);line-height:1.6}
 #scanin{display:none;margin-bottom:10px}
 #p-rec[data-mode="scan"] #scanin{display:block}
@@ -257,14 +280,19 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 <!-- ============ 录像（全屏） ============ -->
 <section class="page" id="p-rec">
   <video id="cam" playsinline muted autoplay></video>
+  <div id="camoff">
+    <div class="ic">📷</div>
+    <div class="t1">摄像头未启动</div>
+    <div class="t2" id="camofftip">点下方按钮开启<br>开启后对准快递面单即可自动录像</div>
+  </div>
   <div class="ovl">
     <div id="wm"><div id="wmTime">--:--:--</div><div id="wmSub">摄像头未启动</div></div>
     <div class="side">
       <button id="bclosecam" title="返回">✕</button>
-      <button id="btorch" title="手电筒">🔦</button>
+      <button id="btorch" class="needcam" title="手电筒">🔦</button>
       <button id="bkeyb" title="手输单号">⌨️</button>
       <button id="bcards2" title="控制卡">🃏</button>
-      <button id="bswitch" title="切换摄像头">🔄</button>
+      <button id="bswitch" class="needcam" title="切换摄像头">🔄</button>
     </div>
     <div id="recitems"><h4 id="recitemsh">本单商品</h4><ul id="recitemslist"></ul></div>
     <div class="bottom">
@@ -274,7 +302,8 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div id="pill">点中间按钮开始待机</div>
       <div class="ctrls">
         <button class="mini-btn" id="bsnap" disabled><i>📸</i>抓拍</button>
-        <button id="bbig"><span class="inner"></span></button>
+        <span class="bigwrap"><button id="bbig"><span class="inner" id="biginner"></span></button>
+          <span id="biglbl">开启摄像头</span></span>
         <button class="mini-btn" id="bpause" disabled><i>⏸</i>暂停</button>
       </div>
       <div class="modeline" id="modeline"></div>
@@ -361,6 +390,25 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="rowi"><span class="lab">抓拍倒计时<small>扫到抓拍卡后等几秒，期间报数并提示</small></span>
         <select id="o-snapdelay"><option value="0">立即</option><option value="2">2 秒</option><option value="3">3 秒</option><option value="5">5 秒</option><option value="8">8 秒</option></select><span class="chev">›</span></div>
       <div class="rowi" id="row-cards"><span class="lab">控制卡 / 打印</span><span class="chev">›</span></div>
+    </div>
+
+    <div class="grp">扫码盘点</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">盘点识别规则<small id="scandesc"></small></span>
+        <select id="o-scanrule">
+          <option value="strict">仅能提取字段的码</option>
+          <option value="2d">任意二维码</option>
+          <option value="custom">自定义规则</option>
+          <option value="any">任意码（不过滤）</option>
+        </select><span class="chev">›</span></div>
+      <div class="rowi sct" style="display:none"><span class="lab">码型</span>
+        <select id="o-scfmt"><option value="both">不限</option><option value="2d">仅二维码</option><option value="1d">仅一维码</option></select><span class="chev">›</span></div>
+      <div class="rowi sct" style="display:none"><span class="lab">长度范围</span>
+        <input type="text" class="mono" id="o-sclen" placeholder="4-64" autocapitalize="off" spellcheck="false"></div>
+      <div class="rowi sct" style="display:none"><span class="lab">必须以此开头<small>多个用逗号分隔</small></span>
+        <input type="text" class="mono" id="o-scpre" placeholder="留空=不限" autocapitalize="characters" spellcheck="false"></div>
+      <div class="rowi sct" style="display:none"><span class="lab">过滤掉以此开头</span>
+        <input type="text" class="mono" id="o-scexc" placeholder="http,wxp" autocapitalize="off" spellcheck="false"></div>
     </div>
 
     <div class="grp">商品扫描</div>
@@ -485,6 +533,7 @@ const DEF_RULES=[
 let rules=lsGet(K.rul,null)||DEF_RULES;
 let opts=Object.assign({
   wbrule:'cn',cfmt:'1d',clen:'12-18',cpre:'',cexc:'',skiptip:true,
+  scanrule:'strict',scfmt:'both',sclen:'4-64',scpre:'',scexc:'',
   dup:'block',sw:'auto',samestop:0,
   q:1080,maxsec:120,audio:true,wake:true,livemark:true,markstyle:'outline',marksn:true,
   tts:true,ttsno:true,ttssn:false,ttscd:true,ttsrate:1,
@@ -733,11 +782,36 @@ function wbMatch(t,fmt){
   }
   return true;
 }
+// 盘点模式的商品判定：默认只认能被「提取字段」命中的码，
+// 否则微信码、网址码这类无关二维码会被当成商品记进去
+function scanMatch(t,fmt){
+  const r=opts.scanrule||'strict';
+  if(r==='any')return true;
+  if(r==='strict')return purify(t).matched;
+  if(r==='2d')return FMT2D.test(fmt||'');
+  if(r==='custom'){
+    if(opts.scfmt==='1d'&&!FMT1D.test(fmt||''))return false;
+    if(opts.scfmt==='2d'&&!FMT2D.test(fmt||''))return false;
+    const m=String(opts.sclen||'').match(/^(\d+)\s*-\s*(\d+)$/);
+    const lo=m?+m[1]:1,hi=m?+m[2]:999;
+    if(t.length<lo||t.length>hi)return false;
+    const pre=splitList(opts.scpre),exc=splitList(opts.scexc);
+    if(pre.length&&!pre.some(x=>t.toUpperCase().startsWith(x.toUpperCase())))return false;
+    if(exc.length&&exc.some(x=>t.toUpperCase().startsWith(x.toUpperCase())))return false;
+    return true;
+  }
+  return true;
+}
+function scanDesc(){
+  return {strict:'只记录能被「提取字段」命中的码（最准，推荐）',
+          '2d':'任意二维码（QR / DataMatrix / PDF417 等）',
+          custom:'自选码型、长度、必须前缀与过滤前缀',
+          any:'任何码都记录（微信码、网址码也会进来）'}[opts.scanrule||'strict'];
+}
 function classify(text,fmt){
   const t=String(text).trim();fmt=fmtName(fmt);
   if(opts.cmd&&/^\[CMD:[A-Z]+\d*\]$/i.test(t))return 'cmd';
-  // 盘点模式没有快递单号，除控制卡外一律当商品（提不出字段就按原文记）
-  if(typeof recType!=='undefined'&&recType==='scan')return 'item';
+  if(typeof recType!=='undefined'&&recType==='scan')return scanMatch(t,fmt)?'item':'skip';
   if(purify(text).matched)return 'item';     // 能提纯 = 商品，永远优先
   if(wbMatch(t,fmt))return 'waybill';
   return 'skip';
@@ -792,7 +866,11 @@ function parseCmd(t){const m=String(t).trim().match(/^\[CMD:([A-Z]+)(\d*)\]$/i);
 async function handle(text,fmt){
   const kind=classify(text,fmt);
   if(kind==='skip'){
-    if(opts.skiptip)toast('已过滤（不符合扫码规则）：'+String(text).slice(0,26),1600);
+    if(opts.skiptip){
+      sfx('dup');
+      toast(isScan()?('已忽略（不符合盘点识别规则）：'+String(text).slice(0,24))
+                    :('已过滤（不符合扫码规则）：'+String(text).slice(0,24)),2000);
+    }
     return;
   }
   if(kind==='cmd'){
@@ -1063,9 +1141,19 @@ function updPill(){
   }
 }
 function updUI(){
+  const scan0=isScan();
   const big=document.getElementById('bbig');
+  big.classList.toggle('idle',!standby);
   big.classList.toggle('standby',standby&&!cur);
   big.classList.toggle('rec',!!cur);
+  document.getElementById('biginner').textContent=standby?'':'📷';
+  document.getElementById('biglbl').textContent=
+    cur?(scan0?'结束并保存':'停止并保存')
+       :(standby?(scan0?'新建任务':'关闭摄像头'):'开启摄像头');
+  document.getElementById('p-rec').dataset.standby=standby?'1':'0';
+  const tip=document.getElementById('camofftip');
+  if(tip)tip.innerHTML=scan0?'点下方按钮开启<br>开启后新建任务即可开始扫码盘点'
+                            :'点下方按钮开启<br>开启后对准快递面单即可自动录像';
   document.getElementById('bsnap').disabled=!cur;
   document.getElementById('bpause').disabled=!cur;
   document.getElementById('bpause').querySelector('i').textContent=(rec&&rec.state==='paused')?'▶':'⏸';
@@ -1076,7 +1164,8 @@ function updUI(){
     (standby?(engine==='native'?'原生解码':'ZXing 解码'):'未启动')+
     (scan?' · 盘点模式，不录像'
          :(' · '+(opts.sw==='auto'?'识别新单号开启新录像':'忽略新单号')))+'<br>'+
-    (scan?('所有扫到的码都按商品记录'+(cur&&cur.photo?' · 本次拍照开':''))
+    (scan?(({strict:'仅记录能提取字段的码',"2d":'仅二维码',custom:'自定义规则',any:'任意码'}[opts.scanrule||'strict'])
+           +(cur&&cur.photo?' · 本次拍照开':''))
          :('扫码模式 · '+({cn:'中国大陆快递面单',i1d:'国际一维码',i2d:'国际二维码',custom:'自定义规则',any:'任意码'}[opts.wbrule])
            +(opts.livemark?' · 水印开':'')))+
     (opts.tts?' · 语音开':'');
@@ -1155,12 +1244,14 @@ function testRule(i){const r=rules[i],out=document.getElementById('out'+i);if(!o
 function syncOpts(){
   ['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd']
     .forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.checked=!!opts[k]});
-  [['wbrule','wbrule'],['cfmt','cfmt'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
+  [['wbrule','wbrule'],['cfmt','cfmt'],['scanrule','scanrule'],['scfmt','scfmt'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
    ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],
    ['ttsrate','ttsrate']].forEach(([id,k])=>{const e=document.getElementById('o-'+id);if(e)e.value=String(opts[k])});
-  ['clen','cpre','cexc'].forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.value=opts[k]||''});
+  ['clen','cpre','cexc','sclen','scpre','scexc'].forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.value=opts[k]||''});
   document.querySelectorAll('.rowi.cst').forEach(r=>r.style.display=opts.wbrule==='custom'?'':'none');
+  document.querySelectorAll('.rowi.sct').forEach(r=>r.style.display=opts.scanrule==='custom'?'':'none');
   const d=document.getElementById('wbdesc');if(d)d.textContent=wbDesc();
+  const d2=document.getElementById('scandesc');if(d2)d2.textContent=scanDesc();
 }
 async function updQuota(){
   const vs=orders.reduce((a,o)=>a+(o.vsize||0),0);
@@ -1422,6 +1513,8 @@ document.getElementById('scaninput').addEventListener('keydown',async e=>{
   const el=e.target,v=el.value.trim();el.value='';
   if(!v)return;
   if(!cur){toast('先点中间按钮新建任务');sfx('bad');return}
+  if(isScan()&&!scanMatch(v,'')){
+    sfx('dup');toast('已忽略（不符合盘点识别规则）：'+v.slice(0,24),2400);return}
   await addItem(v,'keyboard');
 });
 
@@ -1430,13 +1523,13 @@ document.getElementById('scaninput').addEventListener('keydown',async e=>{
     if(e)e.onchange=ev=>{opts[k]=ev.target.checked;lsSet(K.opt,opts);updUI();
       if(k==='livemark'&&ev.target.checked)toast('实时水印会在下一单生效',2400);
       if(k==='tts'&&ev.target.checked)say('语音播报已开启',true)}});
-const selMap=[['wbrule','wbrule',v=>v],['cfmt','cfmt',v=>v],['dup','dup',v=>v],['switch','sw',v=>v],
+const selMap=[['wbrule','wbrule',v=>v],['cfmt','cfmt',v=>v],['scanrule','scanrule',v=>v],['scfmt','scfmt',v=>v],['dup','dup',v=>v],['switch','sw',v=>v],
   ['samestop','samestop',v=>+v],['q','q',v=>+v],['maxsec','maxsec',v=>+v],['markstyle','markstyle',v=>v],
   ['snapdelay','snapdelay',v=>+v],['size','size',v=>+v],['keep','keep',v=>+v],['ttsrate','ttsrate',v=>+v]];
 selMap.forEach(([id,k,f])=>{const e=document.getElementById('o-'+id);
   if(e)e.onchange=ev=>{opts[k]=f(ev.target.value);lsSet(K.opt,opts);syncOpts();updUI();
     if(id==='q'&&standby&&!cur)toast('画质下次开待机时生效',2400)}});
-['clen','cpre','cexc'].forEach(k=>{const e=document.getElementById('o-'+k);
+['clen','cpre','cexc','sclen','scpre','scexc'].forEach(k=>{const e=document.getElementById('o-'+k);
   if(e)e.oninput=ev=>{opts[k]=ev.target.value;lsSet(K.opt,opts)}});
 
 document.getElementById('q').oninput=renderOrders;

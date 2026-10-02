@@ -3,489 +3,589 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>扫码提纯记录器</title>
-<meta name="theme-color" content="#0f1115">
+<title>打包出库留证</title>
+<meta name="theme-color" content="#f2f3f5">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <style>
-  :root{
-    --bg:#0f1115; --panel:#171a21; --panel2:#1f242e; --line:#2b3240;
-    --fg:#e8ecf4; --dim:#9aa6bb; --accent:#4ade80; --accent2:#38bdf8;
-    --warn:#fbbf24; --bad:#f87171; --r:12px;
-  }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%}
-  body{background:var(--bg);color:var(--fg);
-    font:15px/1.5 -apple-system,"Noto Sans CJK SC","Source Han Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
-    display:flex;flex-direction:column;overscroll-behavior:none}
-  header{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
-    background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
-  header h1{font-size:15px;margin:0;font-weight:600}
-  header .count{margin-left:auto;font-size:12px;color:var(--dim);text-align:right;line-height:1.3}
-  nav{display:flex;flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line)}
-  nav button{flex:1;background:none;border:0;color:var(--dim);font:inherit;font-size:14px;
-    padding:11px 2px;border-bottom:2px solid transparent}
-  nav button.on{color:var(--fg);border-bottom-color:var(--accent)}
-  main{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
-  .page{display:none;padding:12px}
-  .page.on{display:block}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:12px}
-  .card h2{font-size:13px;margin:0 0 10px;color:var(--dim);font-weight:600;letter-spacing:.5px}
-  button,select,input,textarea{font:inherit;color:var(--fg)}
-  .btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px;font-size:14px}
-  .btn:active{background:#2a3140}
-  .btn.pri{background:var(--accent);color:#06240f;border-color:transparent;font-weight:600}
-  .btn.bad{color:var(--bad)}
-  .btn.sm{min-height:36px;padding:7px 10px;font-size:13px;border-radius:8px}
-  .btn[disabled]{opacity:.45}
-  .row{display:flex;gap:8px;flex-wrap:wrap}
-  .row>*{flex:1 1 auto}
-  input[type=text],textarea,select{width:100%;background:#0d1016;border:1px solid var(--line);
-    border-radius:10px;padding:10px;min-height:44px}
-  textarea{min-height:72px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:13px}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  label.fld{display:block;margin-bottom:8px}
-  label.fld span{display:block;font-size:12px;color:var(--dim);margin-bottom:4px}
-  .chk{display:flex;align-items:center;gap:8px;min-height:40px;font-size:14px}
-  .chk input{width:20px;height:20px;min-height:0;flex:0 0 auto;accent-color:var(--accent)}
-  #camwrap{position:relative;background:#000;border-radius:var(--r);overflow:hidden;aspect-ratio:3/4}
-  #cam{width:100%;height:100%;object-fit:cover;display:block}
-  #frame{position:absolute;inset:14% 10%;border:2px solid rgba(74,222,128,.9);border-radius:14px;
-    box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
-  #camhint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:#cfe;text-shadow:0 1px 3px #000}
-  #camtools{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:8px}
-  #camtools .btn{min-height:40px;background:rgba(0,0,0,.55)}
-  .flash{animation:fl .45s ease}
-  @keyframes fl{0%{box-shadow:0 0 0 0 rgba(74,222,128,.8) inset}100%{box-shadow:0 0 0 60px rgba(74,222,128,0) inset}}
-  .last .big{font-size:22px;font-weight:700;word-break:break-all;font-family:ui-monospace,Menlo,monospace}
-  .last .raw{font-size:12px;color:var(--dim);word-break:break-all;margin-top:6px}
-  .flds{margin-top:8px;font-size:13px}
-  .flds div{display:flex;gap:8px;padding:3px 0;border-bottom:1px dashed var(--line)}
-  .flds div:last-child{border-bottom:0}
-  .flds .k{color:var(--dim);flex:0 0 38%;word-break:break-all}
-  .flds .val{flex:1 1 auto;font-family:ui-monospace,Menlo,monospace;word-break:break-all}
-  .flds .val.em{color:var(--warn)}
-  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:var(--panel2);
-    color:var(--dim);border:1px solid var(--line)}
-  .tag.ok{color:var(--accent);border-color:#2a5c3c}
-  .tag.warn{color:var(--warn);border-color:#5c4a1e}
-  .tag.dup{color:var(--accent2);border-color:#1e4a5c}
-  ul.recs{list-style:none;margin:0;padding:0}
-  ul.recs li{display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--line);
-    background:var(--panel);border-radius:10px;margin-bottom:8px}
-  ul.recs .th{flex:0 0 auto;width:52px;height:52px;border-radius:8px;object-fit:cover;background:#0d1016;border:1px solid var(--line)}
-  ul.recs .th.none{display:flex;align-items:center;justify-content:center;font-size:18px;color:#3a4252}
-  ul.recs .v{flex:1 1 auto;min-width:0}
-  ul.recs .v b{display:block;font-size:16px;word-break:break-all;font-family:ui-monospace,Menlo,monospace}
-  ul.recs .v small{display:block;color:var(--dim);font-size:11px;margin-top:3px;word-break:break-all}
-  ul.recs .x{flex:0 0 auto;background:none;border:0;color:var(--dim);font-size:19px;padding:4px 3px;min-height:36px}
-  .empty{color:var(--dim);text-align:center;padding:28px 10px;font-size:14px}
-  .rule{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px;margin-bottom:10px}
-  .rule .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-  .rule .hd input[type=text]{min-height:38px}
-  .rule.off{opacity:.5}
-  .star{flex:0 0 auto;background:none;border:0;font-size:20px;padding:4px 6px;color:#3a4252;min-height:38px}
-  .star.on{color:var(--warn)}
-  .test{border-top:1px dashed var(--line);margin-top:8px;padding-top:8px;font-size:13px}
-  .test .out{font-family:ui-monospace,Menlo,monospace;word-break:break-all}
-  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);
-    background:#e8ecf4;color:#11141a;padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;
-    opacity:0;pointer-events:none;transition:opacity .18s;z-index:99;max-width:86vw;text-align:center}
-  #toast.on{opacity:1}
-  .hint{font-size:12px;color:var(--dim);line-height:1.7}
-  .hint code{background:var(--panel2);padding:1px 5px;border-radius:5px;font-size:11.5px}
-  .bar{height:7px;background:#0d1016;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:6px 0}
-  .bar i{display:block;height:100%;background:var(--accent)}
-  #viewer{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:120;display:none;
-    flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
-  #viewer.on{display:flex}
-  #viewer img{max-width:100%;max-height:78vh;border-radius:8px}
-  #viewer .nm{font-size:12px;color:var(--dim);font-family:ui-monospace,Menlo,monospace;word-break:break-all;text-align:center}
+:root{
+  --bg:#f2f3f5; --card:#fff; --fg:#1a1d21; --dim:#8a9099; --line:#ececf0; --sub:#f7f8fa;
+  --blue:#2b7fff; --blue-s:#e8f1ff; --green:#00b96b; --green-s:#e4f7ee;
+  --orange:#ff8c1a; --teal:#12b2a6; --red:#f5222d; --warn:#d48806;
+  --r:16px; --rs:12px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);
+  font:15px/1.55 -apple-system,"Noto Sans CJK SC","Source Han Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  display:flex;flex-direction:column;overscroll-behavior:none}
+button,select,input,textarea{font:inherit;color:inherit}
+.page{display:none;flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.page.on{display:block}
+.pad{padding:0 14px calc(18px + env(safe-area-inset-bottom))}
+
+/* 顶栏 */
+.topbar{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;flex:0 0 auto}
+.topbar .logo{font-size:23px;font-weight:800;letter-spacing:-.5px}
+.topbar h2{font-size:18px;font-weight:600;margin:0;flex:1 1 auto;text-align:center}
+.topbar .sp{flex:1 1 auto}
+.iconbtn{width:44px;height:44px;border-radius:50%;background:var(--card);border:0;display:flex;
+  align-items:center;justify-content:center;font-size:19px;box-shadow:0 1px 3px rgba(0,0,0,.06);flex:0 0 auto}
+.iconbtn:active{background:#eceef2}
+
+/* 卡片/列表 */
+.card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.grp{font-size:13px;color:var(--dim);margin:16px 4px 8px;font-weight:500}
+.list{background:var(--card);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:4px}
+.rowi{display:flex;align-items:center;gap:10px;padding:13px 14px;min-height:54px;border-bottom:1px solid var(--line)}
+.rowi:last-child{border-bottom:0}
+.rowi>.lab{flex:1 1 auto;font-size:15.5px}
+.rowi>.lab small{display:block;font-size:12px;color:var(--dim);line-height:1.5;margin-top:2px}
+.rowi select{border:0;background:none;font-size:15px;color:#4a5160;
+  max-width:64%;padding:4px 0;appearance:none;-webkit-appearance:none;direction:ltr;text-align:right;text-align-last:right}
+.rowi input[type=text]{border:0;background:none;text-align:right;font-size:15px;color:#4a5160;width:40%;padding:4px 0}
+.rowi .chev{color:#c2c7d0;font-size:15px;flex:0 0 auto}
+/* 开关 */
+.sw{position:relative;width:50px;height:30px;flex:0 0 auto}
+.sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;z-index:2}
+.sw i{position:absolute;inset:0;background:#d8dce3;border-radius:999px;transition:background .18s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);transition:transform .18s}
+.sw input:checked + i{background:var(--blue)}
+.sw input:checked + i::after{transform:translateX(20px)}
+
+/* 按钮 */
+.btn{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 14px;min-height:46px;font-size:15px}
+.btn:active{background:#eceef2}
+.btn.pri{background:var(--blue);color:#fff;border-color:transparent;font-weight:600}
+.btn.rec{background:var(--red);color:#fff;border-color:transparent;font-weight:600}
+.btn.gray{background:var(--sub)}
+.btn.bad{color:var(--red)}
+.btn.sm{min-height:38px;padding:8px 11px;font-size:13.5px;border-radius:10px}
+.btn[disabled]{opacity:.45}
+.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1 1 auto}
+
+/* 状态条 */
+.status{display:flex;align-items:center;gap:9px;background:var(--card);border-radius:var(--rs);
+  padding:12px 14px;margin-bottom:9px;font-size:14.5px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.status.ok{background:var(--green-s);color:#067a48}
+.status .sp{flex:1 1 auto}
+.status .chev{color:#b9bfc9}
+
+/* 搜索 */
+.search{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:var(--rs);
+  padding:10px 14px;margin:9px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.search input{flex:1 1 auto;border:0;background:none;font-size:15px;min-width:0;padding:4px 0}
+.search input::placeholder{color:#b4bac4}
+/* chips */
+.chips{display:flex;gap:9px;margin:4px 0 12px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 16px;font-size:14px;color:#5b626e}
+.chip.on{background:var(--blue);color:#fff;border-color:transparent;font-weight:600}
+
+/* 单据列表 */
+.daygrp{display:flex;align-items:baseline;margin:14px 4px 8px}
+.daygrp b{font-size:17px;font-weight:700}
+.daygrp span{margin-left:auto;font-size:13px;color:var(--dim)}
+ul.ords{list-style:none;margin:0;padding:0;background:var(--card);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+ul.ords li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+ul.ords li:last-child{border-bottom:0}
+ul.ords .bar{width:4px;align-self:stretch;border-radius:3px;background:var(--blue);flex:0 0 auto}
+ul.ords .bar.ret{background:var(--orange)}
+.thumb{position:relative;flex:0 0 auto;width:74px;height:56px;border-radius:9px;overflow:hidden;background:#e7e9ee}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .none{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#b4bac4;font-size:17px}
+.thumb .dur{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.72);color:#fff;
+  font-size:10.5px;padding:1px 5px;border-radius:5px;font-variant-numeric:tabular-nums}
+ul.ords .mid{flex:1 1 auto;min-width:0}
+ul.ords .mid b{display:block;font-size:16.5px;font-weight:600;font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+ul.ords .mid .t{font-size:12.5px;color:var(--dim);margin:1px 0 5px}
+.mini{display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 7px;border-radius:6px;margin-right:5px}
+.mini.b{background:var(--blue-s);color:#1a63d6}
+.mini.g{background:var(--green-s);color:#067a48}
+.mini.o{background:#fff1e0;color:#ad5f00}
+.mini.r{background:#ffecec;color:#c92a2a}
+ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
+.empty{color:var(--dim);text-align:center;padding:40px 10px;font-size:14px}
+
+/* 底部三入口 */
+.dock{position:sticky;bottom:0;background:var(--card);border-radius:20px;margin:14px 0 calc(6px + env(safe-area-inset-bottom));
+  padding:13px 8px;display:flex;box-shadow:0 -2px 14px rgba(0,0,0,.08)}
+.dock button{flex:1 1 0;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12.5px;color:#4a5160}
+.dock .ic{width:50px;height:50px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff}
+.dock .b1{background:var(--blue)}.dock .b2{background:var(--orange)}.dock .b3{background:var(--teal)}
+
+/* 录像页 */
+#p-rec{background:#101216;color:#eef1f6}
+#p-rec .pad{padding:0 12px calc(16px + env(safe-area-inset-bottom))}
+#p-rec .topbar h2{color:#eef1f6}
+#p-rec .iconbtn{background:#20242c;color:#eef1f6;box-shadow:none}
+#camwrap{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:3/4}
+#cam{width:100%;height:100%;object-fit:cover;display:block}
+#camtools{position:absolute;top:9px;right:9px;display:flex;flex-direction:column;gap:9px}
+#camtools button{width:42px;height:42px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:18px}
+#recbadge{position:absolute;top:10px;left:10px;display:none;align-items:center;gap:7px;background:rgba(0,0,0,.6);
+  color:#fff;padding:6px 11px;border-radius:999px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+#recbadge.on{display:flex}
+#recbadge .dot{width:9px;height:9px;border-radius:50%;background:#ff4d4f;animation:bl 1s infinite}
+#recbadge.paused .dot{animation:none;background:#faad14}
+@keyframes bl{50%{opacity:.2}}
+#camno{position:absolute;left:10px;right:10px;bottom:28px;font-size:13px;color:#dff;text-shadow:0 1px 3px #000;word-break:break-all;font-family:ui-monospace,Menlo,monospace}
+#camhint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:#cfe;text-shadow:0 1px 3px #000}
+#countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
+  background:rgba(0,0,0,.5);color:#fff;font-size:92px;font-weight:800;text-shadow:0 3px 16px #000}
+#countdown.on{display:flex}
+#countdown small{font-size:16px;font-weight:600;letter-spacing:2px;margin-top:2px}
+.shot{animation:sh .4s ease}@keyframes sh{0%{filter:brightness(2.6)}100%{filter:none}}
+.flash{animation:fl .45s ease}@keyframes fl{0%{box-shadow:0 0 0 0 rgba(74,222,128,.85) inset}100%{box-shadow:0 0 0 60px rgba(74,222,128,0) inset}}
+.dark-card{background:#1a1e25;border-radius:14px;padding:13px;margin-top:12px}
+.dark-card h3{font-size:12.5px;color:#8f98a8;margin:0 0 8px;font-weight:600}
+.nobig{font-size:21px;font-weight:700;font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+.stat{display:flex;gap:16px;font-size:13px;color:#8f98a8;margin-top:5px}
+.stat b{color:#eef1f6;font-size:16px}
+ul.items{list-style:none;margin:9px 0 0;padding:0;max-height:210px;overflow-y:auto}
+ul.items li{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid #262b33;font-size:14px}
+ul.items li:last-child{border-bottom:0}
+ul.items .n{color:#6e7786;font-size:11px;flex:0 0 22px}
+ul.items .vv{flex:1 1 auto;font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 auto}
+#p-rec .btn{background:#222730;border-color:#2e343e;color:#eef1f6}
+#p-rec .btn.pri{background:var(--blue);border-color:transparent}
+#p-rec .btn.rec{background:var(--red);border-color:transparent}
+#p-rec .btn.bad{color:#ff7875}
+#p-rec input[type=text]{background:#171b21;border:1px solid #2e343e;border-radius:11px;padding:11px;color:#eef1f6;width:100%;min-height:46px}
+
+/* 弹层 */
+.modal{position:fixed;inset:0;background:var(--bg);z-index:120;display:none;flex-direction:column}
+.modal.on{display:flex}
+.modal .body{flex:1 1 auto;overflow-y:auto;padding:0 14px calc(18px + env(safe-area-inset-bottom))}
+.modal video,.modal img.big{max-width:100%;border-radius:12px;background:#000;display:block}
+.pbar{height:7px;background:#e7e9ee;border-radius:999px;overflow:hidden;margin:8px 0}
+.pbar i{display:block;height:100%;background:var(--blue);width:0;transition:width .2s}
+.hint{font-size:12.5px;color:var(--dim);line-height:1.7}
+.hint code{background:var(--sub);padding:1px 5px;border-radius:5px;font-size:11.5px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+/* 字段规则 */
+.rule{background:var(--card);border-radius:var(--rs);padding:12px;margin-bottom:11px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.rule .hd{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.rule .hd input[type=text]{flex:1 1 auto;border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-height:40px;background:var(--sub)}
+.rule.off{opacity:.5}
+.star{flex:0 0 auto;background:none;border:0;font-size:21px;padding:3px 5px;color:#ccd1d9}
+.star.on{color:#f5a623}
+.fld{display:block;margin-bottom:9px}
+.fld span{display:block;font-size:12px;color:var(--dim);margin-bottom:4px}
+.fld input{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px;min-height:44px;background:var(--sub)}
+.test{border-top:1px dashed var(--line);margin-top:8px;padding-top:8px;font-size:13px}
+.test .out{font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+/* 控制卡 */
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
+.ccard{border:1px dashed #c8ccd4;border-radius:12px;padding:10px;text-align:center;background:#fff}
+.ccard canvas{width:100%;height:auto;display:block}
+.ccard .t{font-weight:700;font-size:14px;margin-top:7px}
+.ccard .s{font-size:11px;color:#666;font-family:ui-monospace,monospace;word-break:break-all}
+#toast{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:#272c35;color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;font-weight:500;
+  opacity:0;pointer-events:none;transition:opacity .18s;z-index:200;max-width:88vw;text-align:center}
+#toast.on{opacity:1}
+@media print{
+  body{background:#fff}
+  .topbar,#toast,.noprint,.dock{display:none !important}
+  .page{display:none !important}.page#p-cards{display:block !important}
+  .pad{padding:0}
+  .cards{grid-template-columns:repeat(2,1fr);gap:14px}
+  .ccard{page-break-inside:avoid}
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>扫码提纯记录器</h1>
-  <span class="count" id="hcount">0 条</span>
-</header>
-<nav>
-  <button data-tab="scan" class="on">扫码</button>
-  <button data-tab="recs">记录</button>
-  <button data-tab="rules">字段</button>
-  <button data-tab="set">设置</button>
-</nav>
-<main>
 
-<section class="page on" id="p-scan">
-  <div id="camwrap">
-    <video id="cam" playsinline muted autoplay></video>
-    <div id="frame"></div>
-    <div id="camtools">
-      <button class="btn" id="btorch" title="手电筒">🔆</button>
-      <button class="btn" id="bswitch" title="切换摄像头">🔄</button>
+<!-- ============ 首页 ============ -->
+<section class="page on" id="p-home">
+  <div class="topbar">
+    <span class="logo">打包留证</span>
+    <span class="sp"></span>
+    <button class="iconbtn" id="gofields" title="字段规则">🏷️</button>
+    <button class="iconbtn" id="goset" title="设置">⚙️</button>
+  </div>
+  <div class="pad">
+    <div class="status" id="st-engine"><span>📷</span><span class="sp" id="st-engine-t">摄像头未启动</span><span class="chev">›</span></div>
+    <div class="status" id="st-store"><span>💾</span><span class="sp" id="st-store-t">统计中…</span><span class="chev">›</span></div>
+
+    <div class="search">
+      <span style="color:#b4bac4">🔍</span>
+      <input type="text" id="q" placeholder="输入单号或序列号搜索">
+      <button class="iconbtn" style="width:34px;height:34px;font-size:15px;box-shadow:none;background:var(--sub)" id="qclear">✕</button>
     </div>
-    <div id="camhint">点下方按钮开始</div>
-  </div>
-  <div class="row" style="margin-top:12px">
-    <button class="btn pri" id="bstart" style="flex:2">开始扫码</button>
-    <button class="btn" id="bstop">停止</button>
-  </div>
+    <div class="chips">
+      <button class="chip on" data-f="all">全部 (0)</button>
+      <button class="chip" data-f="out">发货 (0)</button>
+      <button class="chip" data-f="ret">退货 (0)</button>
+    </div>
 
-  <div class="card last" id="lastcard" style="display:none;margin-top:12px">
-    <h2>最近一条</h2>
-    <div style="display:flex;gap:10px;align-items:flex-start">
-      <img id="lastth" class="th" style="width:72px;height:72px;border-radius:8px;object-fit:cover;display:none;border:1px solid var(--line)">
-      <div style="flex:1 1 auto;min-width:0">
-        <div class="big" id="lastval">—</div>
-        <div style="margin-top:6px"><span class="tag" id="lasttag"></span></div>
+    <div id="ordwrap"></div>
+    <div class="empty" id="ordsempty">还没有单据<br><span style="font-size:12.5px">点下面「打包发货录像」开始</span></div>
+
+    <div class="dock">
+      <button id="go-out"><span class="ic b1">📦</span>打包发货录像</button>
+      <button id="go-ret"><span class="ic b2">📥</span>拆包退货录像</button>
+      <button id="go-store"><span class="ic b3">☁️</span>备份和存储</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 录像 ============ -->
+<section class="page" id="p-rec">
+  <div class="topbar">
+    <button class="iconbtn" id="recback">‹</button>
+    <h2 id="rectitle">打包发货录像</h2>
+    <button class="iconbtn" id="reccards" title="控制卡">🃏</button>
+  </div>
+  <div class="pad">
+    <div id="camwrap">
+      <video id="cam" playsinline muted autoplay></video>
+      <div id="recbadge"><span class="dot"></span><span id="rectime">00:00</span></div>
+      <div id="camtools">
+        <button id="btorch" title="手电筒">🔆</button>
+        <button id="bswitch" title="切换摄像头">🔄</button>
+      </div>
+      <div id="camno"></div>
+      <div id="camhint">点「开始待机」，然后对准面单</div>
+      <div id="countdown"><span id="cdnum">3</span><small id="cdtip">准备抓拍</small></div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <button class="btn pri" id="bstandby" style="flex:2">开始待机</button>
+      <button class="btn" id="bquit">关闭</button>
+    </div>
+
+    <div class="dark-card" id="curcard" style="display:none">
+      <h3>当前单</h3>
+      <div class="nobig" id="curno">—</div>
+      <div class="stat">
+        <span>时长 <b id="curdur">00:00</b></span>
+        <span>商品 <b id="curn">0</b></span>
+        <span>照片 <b id="curp">0</b></span>
+      </div>
+      <ul class="items" id="curitems"></ul>
+      <div class="row" style="margin-top:11px">
+        <button class="btn rec" id="bstop">停止并保存</button>
+        <button class="btn" id="bsnap">抓拍</button>
+        <button class="btn" id="bpause">暂停</button>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn sm bad" id="bdiscard">丢弃本段</button></div>
+    </div>
+
+    <div class="dark-card">
+      <h3>手动开单</h3>
+      <div class="row">
+        <input type="text" class="mono" id="manualno" placeholder="手输单号" autocapitalize="characters" spellcheck="false" style="flex:2">
+        <button class="btn pri" id="bmanualstart" style="flex:0 0 92px">开录</button>
       </div>
     </div>
-    <div class="flds" id="lastflds"></div>
-    <div class="raw" id="lastraw"></div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn sm" id="bcopylast">复制主值</button>
-      <button class="btn sm" id="bcopylastraw">复制原始内容</button>
-      <button class="btn sm bad" id="bundo">撤销这条</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>手动录入 / 粘贴</h2>
-    <textarea id="manual" placeholder="粘贴一条或多条原始内容，每行一条（手动录入没有照片）"></textarea>
-    <div class="row" style="margin-top:8px"><button class="btn" id="bmanual">按字段提纯并入库</button></div>
   </div>
 </section>
 
-<section class="page" id="p-recs">
-  <div class="card">
-    <input type="text" id="q" placeholder="搜索任意字段或原始内容…">
-    <div class="row" style="margin-top:8px">
-      <button class="btn sm" id="bcopyall">复制主值</button>
-      <button class="btn sm" id="bcsv">导出 CSV</button>
-      <button class="btn sm" id="bzip">导出 ZIP（含照片）</button>
+<!-- ============ 设置 ============ -->
+<section class="page" id="p-set">
+  <div class="topbar"><button class="iconbtn" id="setback">‹</button><h2>设置</h2><span style="width:44px"></span></div>
+  <div class="pad">
+    <div class="grp">扫码设置</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">面单识别规则</span>
+        <select id="o-wbrule"><option value="any">任意一维条码</option><option value="cn">中国大陆快递面单</option><option value="custom">自定义正则</option></select><span class="chev">›</span></div>
+      <div class="rowi" id="row-wbre" style="display:none"><span class="lab">自定义正则</span>
+        <input type="text" class="mono" id="o-wbre" placeholder="^[A-Z]{2}\d{10,}$" autocapitalize="off" spellcheck="false"></div>
+      <div class="rowi"><span class="lab">重复单号规则</span>
+        <select id="o-dup"><option value="block">提示并禁止录制</option><option value="warn">提示但继续录制</option><option value="silent">不提示直接录制</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">扫到新单号时<small>当前正在录制中</small></span>
+        <select id="o-switch"><option value="auto">结束上一单并开新单</option><option value="ignore">忽略，继续录当前单</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">再扫一次相同单号<small>当前正在录制中</small></span>
+        <select id="o-samestop"><option value="0">忽略</option><option value="1">停止并保存</option></select><span class="chev">›</span></div>
     </div>
-    <div class="row" style="margin-top:8px">
-      <button class="btn sm" id="brerun">用当前字段重算</button>
-      <button class="btn sm bad" id="bclear">清空记录</button>
+
+    <div class="grp">录像设置</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">录像画质</span>
+        <select id="o-q"><option value="1080">高清 1080p · 16MB/分</option><option value="720">标清 720p · 8MB/分</option><option value="480">流畅 480p · 3MB/分</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">最大录像时长<small>到点自动停止保存，防止忘关</small></span>
+        <select id="o-maxsec"><option value="60">60 秒</option><option value="120">120 秒</option><option value="300">5 分钟</option><option value="600">10 分钟</option><option value="1200">20 分钟</option><option value="0">不限制</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">录像时收录声音</span><label class="sw"><input type="checkbox" id="o-audio"><i></i></label></div>
+      <div class="rowi"><span class="lab">录像时保持屏幕常亮</span><label class="sw"><input type="checkbox" id="o-wake"><i></i></label></div>
+      <div class="rowi"><span class="lab">录像时添加水印<small>实时烧进画面；低端机 1080p 可能掉帧，掉帧会自动关闭</small></span>
+        <label class="sw"><input type="checkbox" id="o-livemark"><i></i></label></div>
+      <div class="rowi"><span class="lab">水印样式</span>
+        <select id="o-markstyle"><option value="outline">白字黑描边</option><option value="bar">黑底白字</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">水印内容带序列号<small>把本单已扫到的序列号也写进水印</small></span>
+        <label class="sw"><input type="checkbox" id="o-marksn"><i></i></label></div>
     </div>
+
+    <div class="grp">控制卡</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">启用扫码控制指令</span><label class="sw"><input type="checkbox" id="o-cmd"><i></i></label></div>
+      <div class="rowi"><span class="lab">抓拍倒计时<small>扫到抓拍卡后等几秒，期间有倒计时和提示音</small></span>
+        <select id="o-snapdelay"><option value="0">立即</option><option value="2">2 秒</option><option value="3">3 秒</option><option value="5">5 秒</option><option value="8">8 秒</option></select><span class="chev">›</span></div>
+      <div class="rowi" id="row-cards"><span class="lab">控制卡 / 打印</span><span class="chev">›</span></div>
+    </div>
+
+    <div class="grp">商品扫描</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">扫到商品码时自动抓拍</span><label class="sw"><input type="checkbox" id="o-photo"><i></i></label></div>
+      <div class="rowi"><span class="lab">照片烧录水印</span><label class="sw"><input type="checkbox" id="o-mark"><i></i></label></div>
+      <div class="rowi"><span class="lab">照片长边</span>
+        <select id="o-size"><option value="1024">1024px</option><option value="1600">1600px</option><option value="2048">2048px</option></select><span class="chev">›</span></div>
+      <div class="rowi" id="row-fields"><span class="lab">提取字段规则<small id="fieldsum"></small></span><span class="chev">›</span></div>
+    </div>
+
+    <div class="grp">提示音</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">提示音</span><label class="sw"><input type="checkbox" id="o-beep"><i></i></label></div>
+      <div class="rowi"><span class="lab">震动</span><label class="sw"><input type="checkbox" id="o-vib"><i></i></label></div>
+    </div>
+    <div style="height:18px"></div>
   </div>
-  <ul class="recs" id="recs"></ul>
-  <div class="empty" id="recsempty">还没有记录</div>
-  <div class="row" id="morewrap" style="display:none"><button class="btn" id="bmore">显示更多</button></div>
 </section>
 
-<section class="page" id="p-rules">
-  <div class="card">
-    <h2>提取字段（每条 = CSV 的一列；★ 是主值，用于去重、照片命名和大字显示）</h2>
+<!-- ============ 备份和存储 ============ -->
+<section class="page" id="p-store">
+  <div class="topbar"><button class="iconbtn" id="storeback">‹</button><h2>备份和存储</h2><span style="width:44px"></span></div>
+  <div class="pad">
+    <div class="list">
+      <div class="rowi"><span class="lab">视频保留天数</span>
+        <select id="o-keep"><option value="0">永久保留</option><option value="7">7 天</option><option value="30">30 天</option><option value="90">90 天</option><option value="180">180 天</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">手机存储占用</span><span class="mono" id="st-usage" style="color:#4a5160;font-size:13.5px"></span></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="pbar"><i id="qbar"></i></div>
+      <div class="hint" id="qtext">统计中…</div>
+      <div class="hint" id="persist" style="margin-top:5px"></div>
+    </div>
+
+    <div class="grp">导出</div>
+    <div class="list">
+      <div class="rowi" id="row-csv"><span class="lab">导出 CSV 清单<small>单号 + 序列号 + 时间，Excel 直接开</small></span><span class="chev">›</span></div>
+      <div class="rowi" id="row-backup"><span class="lab">导出备份<small>单据与序列号，不含视频（太大）</small></span><span class="chev">›</span></div>
+      <div class="rowi" id="row-restore"><span class="lab">从备份恢复</span><span class="chev">›</span></div>
+    </div>
+
+    <div class="grp">清理</div>
+    <div class="list">
+      <div class="rowi" id="row-delvideo"><span class="lab" style="color:var(--red)">只删视频<small>单据、序列号和照片保留</small></span><span class="chev">›</span></div>
+      <div class="rowi" id="row-clear"><span class="lab" style="color:var(--red)">清空全部单据<small>含视频和照片，不可恢复</small></span><span class="chev">›</span></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="hint">数据只存在这台手机的浏览器里。<b style="color:var(--warn)">清理 Chrome 的「网站数据」会全部清掉。</b>重要单据请及时导出视频和备份。</div>
+      <div class="hint" id="bkinfo" style="margin-top:6px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 字段规则 ============ -->
+<section class="page" id="p-fields">
+  <div class="topbar"><button class="iconbtn" id="fieldsback">‹</button><h2>提取字段</h2><span style="width:44px"></span></div>
+  <div class="pad">
+    <div class="hint" style="margin:4px 0 12px">每条 = CSV 的一列。<b>列名相同</b>的多条规则算同一列的备选，自上而下先命中的生效。★ 为主值，用于去重、显示和照片命名。</div>
     <div id="rules"></div>
     <div class="row"><button class="btn" id="bnewrule">+ 新建字段</button></div>
-  </div>
-  <div class="card">
-    <h2>说明</h2>
-    <p class="hint">
-      <b>列名相同</b>的多条规则算同一列的备选：自上而下，先命中的那条生效，后面的跳过——用来写兜底。<br><br>
-      <b>输出模板</b>：<code>$0</code> 整个匹配，<code>$1</code> <code>$2</code> 捕获组，<code>${name}</code> 命名组。<br><br>
-      <b>你的 GS1 DataMatrix</b>：各段由不可见的 <code>0x1D</code> 分隔，页面里统一显示成 <code>&lt;GS&gt;</code>。<br>
-      <code>&lt;GS&gt;241123-456-789&lt;GS&gt;211AB2345678&lt;GS&gt;250C1DE2345678</code><br>
-      · AI(241) 客户零件号 → <code>123-456-789</code><br>
-      · AI(21) 序列号 → <code>1AB2345678</code>　★主值<br>
-      · AI(250) 二级序列号 → <code>C1DE2345678</code><br><br>
-      换别的 AI 只改正则里那串数字。其它常用写法：<br>
-      · URL 的 code 参数 <code>[?&amp;]code=([^&amp;]+)</code>　· 连续数字 <code>\d{10,20}</code>　· 去固定前缀 <code>^SN-(.+)$</code>
-    </p>
-  </div>
-</section>
-
-<section class="page" id="p-set">
-  <div class="card">
-    <h2>扫码</h2>
-    <label class="chk"><input type="checkbox" id="o-dedup"> 全局去重（主值已存在就不再入库）</label>
-    <label class="chk"><input type="checkbox" id="o-beep"> 扫中提示音</label>
-    <label class="chk"><input type="checkbox" id="o-vib"> 扫中震动</label>
-    <label class="chk"><input type="checkbox" id="o-auto"> 扫中后自动复制主值</label>
-    <label class="fld" style="margin-top:8px"><span>没有任何字段匹配时</span>
-      <select id="o-nomatch">
-        <option value="raw">原样入库（标黄提醒）</option>
-        <option value="skip">丢弃不入库</option>
-      </select></label>
-  </div>
-
-  <div class="card">
-    <h2>拍照</h2>
-    <label class="chk"><input type="checkbox" id="o-photo"> 解码瞬间自动抓拍一张</label>
-    <label class="chk"><input type="checkbox" id="o-mark"> 照片右下角烧录水印（主值 + 时间）</label>
-    <label class="fld" style="margin-top:8px"><span>照片长边</span>
-      <select id="o-size">
-        <option value="1024">1024px · 约 80KB，省空间</option>
-        <option value="1600">1600px · 约 150KB，推荐</option>
-        <option value="2048">2048px · 约 260KB，看得清细字</option>
-      </select></label>
-    <label class="fld"><span>文件名模板（可用 {时间} {日期} {值} {原始} {序号} {列名}）</span>
-      <input type="text" class="mono" id="o-name" autocapitalize="off" spellcheck="false"></label>
-    <div class="hint" id="namedemo"></div>
-  </div>
-
-  <div class="card">
-    <h2>存储</h2>
-    <div class="bar"><i id="qbar" style="width:0%"></i></div>
-    <div class="hint" id="qtext">统计中…</div>
-    <div class="hint" id="persist" style="margin-top:4px"></div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn sm bad" id="bdelphotos">只删照片（保留记录）</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>备份与恢复</h2>
-    <p class="hint" style="margin:0 0 10px">
-      数据只存在这台手机的浏览器里。<b style="color:var(--warn)">清理 Chrome 的「网站数据」会连记录和照片一起清掉，无法恢复。</b>
-      备份 ZIP 里含 <code>backup.json</code>（记录+字段+设置）、<code>记录.csv</code> 和全部照片，可完整还原。
-    </p>
-    <div class="row">
-      <button class="btn" id="bbackup">导出完整备份</button>
-      <button class="btn" id="brestore">从备份恢复</button>
-    </div>
-    <label class="fld" style="margin-top:10px"><span>距上次备份每满多少条就提醒一次（0 = 不提醒）</span>
-      <input type="text" class="mono" id="o-remind" inputmode="numeric"></label>
-    <div class="hint" id="bkinfo"></div>
-  </div>
-
-  <div class="card">
-    <h2>字段规则备份</h2>
-    <div class="row">
-      <button class="btn sm" id="brexport">导出字段 JSON</button>
-      <button class="btn sm" id="brimport">导入字段 JSON</button>
+    <div class="card" style="margin-top:12px">
+      <div class="hint">
+        <b>输出模板</b>：<code>$0</code> 整个匹配，<code>$1</code> <code>$2</code> 捕获组，<code>${name}</code> 命名组。<br><br>
+        <b>GS1 DataMatrix</b>：各段由不可见的 <code>0x1D</code> 分隔，页面里统一显示成 <code>&lt;GS&gt;</code>。<br>
+        <code>&lt;GS&gt;241123-456-789&lt;GS&gt;211AB2345678&lt;GS&gt;250C1DE2345678</code><br>
+        AI(241) 客户零件号 · AI(21) 序列号 ★ · AI(250) 二级序列号。换别的 AI 只改正则里那串数字。
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm" id="brexport">导出 JSON</button>
+        <button class="btn sm" id="brimport">导入 JSON</button>
+      </div>
     </div>
   </div>
 </section>
 
-</main>
-<div id="toast"></div>
-<div id="viewer"><img id="vimg"><div class="nm" id="vname"></div>
-  <div class="row" style="max-width:420px"><button class="btn" id="vsave">保存到相册/下载</button><button class="btn" id="vclose">关闭</button></div>
+<!-- ============ 控制卡 ============ -->
+<section class="page" id="p-cards">
+  <div class="topbar noprint"><button class="iconbtn" id="cardsback">‹</button><h2>控制卡</h2>
+    <button class="iconbtn" id="bprint" title="打印">🖨️</button></div>
+  <div class="pad">
+    <div class="hint noprint" style="margin:4px 0 12px">
+      打印出来剪开塑封，封箱后往镜头前一晃即可，全程不用碰屏幕。<br>
+      同一张卡<b>必须离开画面后才会再次触发</b>，举着不动不会重复执行。
+    </div>
+    <div class="cards" id="cardsbox"></div>
+  </div>
+</section>
+
+<!-- ============ 单据详情 ============ -->
+<div class="modal" id="viewer">
+  <div class="topbar"><button class="iconbtn" id="vclose">‹</button><h2 id="vtitle" class="mono" style="font-size:16px"></h2><span style="width:44px"></span></div>
+  <div class="body" id="vbody"></div>
 </div>
 
+<div id="toast"></div>
+
 <script>
-/* ============ 常量 / 存储 ============ */
-const K={rul:'qrc.rules',opt:'qrc.opts',bk:'qrc.lastbackup'};
+/* ===================== 配置 ===================== */
+const K={rul:'pk.rules',opt:'pk.opts',bk:'pk.lastbackup'};
 const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
-
 const DEF_RULES=[
   {id:1,col:'客户零件号',pattern:'(?:^|\\x1d|<GS>)241([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:false,
    sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
   {id:2,col:'序列号',pattern:'(?:^|\\x1d|<GS>)21([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:true,
    sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
   {id:3,col:'二级序列号',pattern:'(?:^|\\x1d|<GS>)250([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:false,
-   sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
-  {id:4,col:'序列号',pattern:'21([0-9A-Z]{10})',flags:'',tpl:'$1',on:false,primary:false,sample:''}
+   sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'}
 ];
 let rules=lsGet(K.rul,null)||DEF_RULES;
-let opts=Object.assign({dedup:true,beep:true,vib:true,auto:false,nomatch:'raw',
-  photo:true,mark:true,size:1600,name:'{日期}-{时间}_{值}',remind:100},lsGet(K.opt,{}));
-let records=[];
+let opts=Object.assign({
+  wbrule:'any',wbre:'',dup:'block',sw:'auto',samestop:0,
+  q:1080,maxsec:120,audio:true,wake:true,livemark:false,markstyle:'outline',marksn:true,
+  cmd:true,snapdelay:3,photo:true,mark:true,size:1600,beep:true,vib:true,keep:0
+},lsGet(K.opt,{}));
+let orders=[],filt='all',recType='out';
 
-/* ============ IndexedDB ============ */
-const DB={
-  db:null,
-  open(){return new Promise((res,rej)=>{
-    const q=indexedDB.open('qrc',1);
-    q.onupgradeneeded=()=>{const d=q.result;
-      if(!d.objectStoreNames.contains('records'))d.createObjectStore('records',{keyPath:'id'});
-      if(!d.objectStoreNames.contains('photos'))d.createObjectStore('photos',{keyPath:'id'});};
-    q.onsuccess=()=>{DB.db=q.result;res()};q.onerror=()=>rej(q.error);
-  })},
-  tx(s,m){return DB.db.transaction(s,m).objectStore(s)},
-  put(s,v){return new Promise((res,rej)=>{const r=DB.tx(s,'readwrite').put(v);r.onsuccess=res;r.onerror=()=>rej(r.error)})},
-  get(s,k){return new Promise((res,rej)=>{const r=DB.tx(s,'readonly').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})},
-  del(s,k){return new Promise((res,rej)=>{const r=DB.tx(s,'readwrite').delete(k);r.onsuccess=res;r.onerror=()=>rej(r.error)})},
-  all(s){return new Promise((res,rej)=>{const r=DB.tx(s,'readonly').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})},
-  clear(s){return new Promise((res,rej)=>{const r=DB.tx(s,'readwrite').clear();r.onsuccess=res;r.onerror=()=>rej(r.error)})}
+/* ===================== IndexedDB ===================== */
+const DB={db:null,
+  open(){return new Promise((res,rej)=>{const q=indexedDB.open('pk',1);
+    q.onupgradeneeded=()=>{const d=q.result;['orders','videos','photos'].forEach(s=>{
+      if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:'id'})})};
+    q.onsuccess=()=>{DB.db=q.result;res()};q.onerror=()=>rej(q.error)})},
+  st(s,m){return DB.db.transaction(s,m).objectStore(s)},
+  put(s,v){return new Promise((a,b)=>{const r=DB.st(s,'readwrite').put(v);r.onsuccess=a;r.onerror=()=>b(r.error)})},
+  get(s,k){return new Promise((a,b)=>{const r=DB.st(s,'readonly').get(k);r.onsuccess=()=>a(r.result);r.onerror=()=>b(r.error)})},
+  del(s,k){return new Promise((a,b)=>{const r=DB.st(s,'readwrite').delete(k);r.onsuccess=a;r.onerror=()=>b(r.error)})},
+  all(s){return new Promise((a,b)=>{const r=DB.st(s,'readonly').getAll();r.onsuccess=()=>a(r.result||[]);r.onerror=()=>b(r.error)})},
+  clear(s){return new Promise((a,b)=>{const r=DB.st(s,'readwrite').clear();r.onsuccess=a;r.onerror=()=>b(r.error)})}
 };
 
-/* ============ 工具 ============ */
+/* ===================== 工具 ===================== */
 let tt;
 function toast(m,ms){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
   clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1800)}
-async function copy(s){
-  if(!s){toast('没有内容可复制');return}
-  try{await navigator.clipboard.writeText(s);toast('已复制')}
-  catch(e){const ta=document.createElement('textarea');ta.value=s;ta.style.position='fixed';ta.style.opacity='0';
-    document.body.appendChild(ta);ta.select();
-    try{document.execCommand('copy');toast('已复制')}catch(_){toast('复制失败，请长按选择')}ta.remove()}
-}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const visRaw=s=>String(s).replace(/\x1d/g,'<GS>').replace(/\x1e/g,'<RS>').replace(/\x04/g,'<EOT>')
+const visRaw=s=>String(s).replace(/\x1d/g,'<GS>').replace(/\x1e/g,'<RS>')
   .replace(/[\x00-\x08\x0b\x0c\x0e-\x1c\x1f]/g,c=>'<0x'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0')+'>');
 const p2=x=>String(x).padStart(2,'0');
 const ymd=n=>{const d=new Date(n);return `${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}`};
-const hms=n=>{const d=new Date(n);return `${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`};
+const hmsf=n=>{const d=new Date(n);return `${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`};
 const ts=n=>{const d=new Date(n);return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`};
+const md=n=>{const d=new Date(n);return `${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`};
+const mmss=ms=>{const s=Math.max(0,Math.floor(ms/1000));return p2(Math.floor(s/60))+':'+p2(s%60)};
 const kb=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':n<1073741824?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(2)+' GB';
-function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
-  a.click();setTimeout(()=>URL.revokeObjectURL(a.href),8000)}
-function loadJS(src,glob){return new Promise((res,rej)=>{
-  if(window[glob])return res();
-  const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error('加载失败：'+src));
-  document.head.appendChild(s)})}
+const sanitize=s=>String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g,'_').replace(/\s+/g,'_').slice(0,100);
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),10000)}
+function loadJS(src,glob){return new Promise((res,rej)=>{if(window[glob])return res();
+  const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error('加载失败'));document.head.appendChild(s)})}
+async function copy(s){if(!s)return;try{await navigator.clipboard.writeText(s);toast('已复制')}catch(e){
+  const t=document.createElement('textarea');t.value=s;t.style.position='fixed';t.style.opacity='0';
+  document.body.appendChild(t);t.select();try{document.execCommand('copy');toast('已复制')}catch(_){}t.remove()}}
+function dayLabel(n){const d=new Date(n),t=new Date();
+  const same=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+  const y=new Date(t.getTime()-86400000);
+  if(same(d,t))return '今天';if(same(d,y))return '昨天';
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`}
 
-/* ============ 提纯：多字段 ============ */
-function cols(){const seen=[];rules.forEach(r=>{if(r.on&&r.col&&!seen.includes(r.col))seen.push(r.col)});return seen}
+/* ===================== 提纯 ===================== */
+function cols(){const s=[];rules.forEach(r=>{if(r.on&&r.col&&!s.includes(r.col))s.push(r.col)});return s}
 function primaryCol(){const p=rules.find(r=>r.on&&r.primary&&r.col);return p?p.col:(cols()[0]||null)}
-function applyTpl(tpl,m){
-  let o=tpl||'$0';
+function applyTpl(tpl,m){let o=tpl||'$0';
   o=o.replace(/\$\{(\w+)\}/g,(_,n)=>(m.groups&&m.groups[n]!=null)?m.groups[n]:'');
-  o=o.replace(/\$(\d+)/g,(_,i)=>m[+i]!=null?m[+i]:'');
-  return o.trim();
-}
-function purify(raw){
-  raw=String(raw);
-  const f={},hit={};
+  return o.replace(/\$(\d+)/g,(_,i)=>m[+i]!=null?m[+i]:'').trim()}
+function purify(raw){raw=String(raw);const f={};
   for(const r of rules){
-    if(!r.on||!r.pattern||!r.col)continue;
-    if(f[r.col]!=null)continue;              // 同列已命中，后面的规则是兜底，跳过
+    if(!r.on||!r.pattern||!r.col||f[r.col]!=null)continue;
     let re;try{re=new RegExp(r.pattern,r.flags||'')}catch(e){continue}
-    const m=raw.match(re);
-    if(!m)continue;
-    const v=applyTpl(r.tpl,m);
-    if(v==='')continue;
-    f[r.col]=v;hit[r.col]=r.col;
-  }
-  const pc=primaryCol();
-  const matched=Object.keys(f).length>0;
-  return {f,matched,v:(pc&&f[pc]!=null)?f[pc]:(matched?f[Object.keys(f)[0]]:raw.trim())};
-}
+    const m=raw.match(re);if(!m)continue;
+    const v=applyTpl(r.tpl,m);if(v==='')continue;f[r.col]=v}
+  const pc=primaryCol(),matched=Object.keys(f).length>0;
+  return {f,matched,v:(pc&&f[pc]!=null)?f[pc]:(matched?f[Object.keys(f)[0]]:raw.trim())}}
 
-/* ============ 照片 ============ */
-function sanitize(s){return String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g,'_').replace(/\s+/g,'_').slice(0,120)}
-function fileName(rec,idx){
-  const map={'{时间}':hms(rec.t),'{日期}':ymd(rec.t),'{值}':rec.v,'{原始}':visRaw(rec.raw),
-             '{序号}':String(idx).padStart(4,'0')};
-  let n=opts.name||'{日期}-{时间}_{值}';
-  n=n.replace(/\{(时间|日期|值|原始|序号)\}/g,m=>map[m]);
-  n=n.replace(/\{([^{}]+)\}/g,(m,c)=>(rec.f&&rec.f[c]!=null)?rec.f[c]:'');
-  return sanitize(n)+'.jpg';
-}
-async function snap(label){
-  const w=video.videoWidth,h=video.videoHeight;
-  if(!w||!h)return null;
-  const MAX=+opts.size||1600, s=Math.min(1,MAX/Math.max(w,h));
-  const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
-  const x=c.getContext('2d');x.drawImage(video,0,0,c.width,c.height);
-  if(opts.mark&&label){
-    const pad=Math.max(6,Math.round(c.width*.012)), fs=Math.max(13,Math.round(c.width*.032));
-    x.font='600 '+fs+'px ui-monospace,Menlo,monospace';x.textBaseline='top';
-    const tw=Math.ceil(x.measureText(label).width);
-    x.fillStyle='rgba(0,0,0,.62)';
-    x.fillRect(c.width-tw-pad*3,c.height-fs-pad*3,tw+pad*2,fs+pad*2);
-    x.fillStyle='#fff';x.fillText(label,c.width-tw-pad*2,c.height-fs-pad*2);
-  }
-  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
-  const tc=document.createElement('canvas'),k=Math.min(1,160/Math.max(c.width,c.height));
-  tc.width=Math.round(c.width*k);tc.height=Math.round(c.height*k);
-  tc.getContext('2d').drawImage(c,0,0,tc.width,tc.height);
-  return {blob,thumb:tc.toDataURL('image/jpeg',.6),size:blob?blob.size:0};
-}
-
-/* ============ 入库 ============ */
-let lastRec=null;
-async function addRaw(raw,fmt,withPhoto){
-  raw=String(raw).trim();
-  if(!raw)return null;
-  const p=purify(raw);
-  if(!p.matched&&opts.nomatch==='skip'){toast('没有字段匹配，已丢弃');return null}
-  if(!p.v){toast('提纯结果为空，已跳过');return null}
-  if(opts.dedup&&records.some(r=>r.v===p.v)){
-    showLast({v:p.v,raw,f:p.f,matched:p.matched,t:Date.now(),fmt},'dup',null);
-    toast('重复，已跳过');return null;
-  }
-  const rec={id:Date.now()+Math.random(),t:Date.now(),v:p.v,f:p.f,raw,matched:p.matched,fmt:fmt||'manual',ph:false,thumb:null,psize:0};
-  if(withPhoto&&opts.photo){
-    try{
-      const s=await snap(opts.mark?(rec.v+' · '+ts(rec.t)):null);
-      if(s&&s.blob){await DB.put('photos',{id:rec.id,blob:s.blob});rec.ph=true;rec.thumb=s.thumb;rec.psize=s.size}
-    }catch(e){toast('拍照失败：'+e.message)}
-  }
-  await DB.put('records',rec);
-  records.unshift(rec);lastRec=rec;
-  showLast(rec,p.matched?'ok':'warn',rec.thumb);
-  renderRecs();renderCount();updQuota();
-  if(opts.auto)copy(rec.v);
-  checkRemind();
-  return rec;
-}
-function fldsHTML(f){
-  const list=cols();Object.keys(f||{}).forEach(k=>{if(!list.includes(k))list.push(k)});
-  if(!list.length)return '';
-  const pc=primaryCol();
-  return list.map(c=>`<div><span class="k">${esc(c)}${c===pc?' ★':''}</span><span class="val${(f&&f[c]!=null)?'':' em'}">${(f&&f[c]!=null)?esc(f[c]):'（未匹配）'}</span></div>`).join('');
-}
-function showLast(r,kind,thumb){
-  document.getElementById('lastcard').style.display='';
-  document.getElementById('lastval').textContent=r.v;
-  document.getElementById('lastflds').innerHTML=fldsHTML(r.f);
-  document.getElementById('lastraw').textContent='原始：'+visRaw(r.raw);
-  const im=document.getElementById('lastth');
-  if(thumb){im.src=thumb;im.style.display=''}else{im.style.display='none'}
-  const t=document.getElementById('lasttag');
-  const n=r.f?Object.keys(r.f).length:0;
-  t.className='tag '+(kind==='dup'?'dup':kind==='warn'?'warn':'ok');
-  t.textContent=kind==='dup'?'重复（未入库）':kind==='warn'?'无字段匹配 · 原样入库':('提取到 '+n+' 个字段'+(r.ph?' · 已拍照':''));
-  document.getElementById('bundo').style.display=kind==='dup'?'none':'';
-  const w=document.getElementById('camwrap');w.classList.remove('flash');void w.offsetWidth;w.classList.add('flash');
-  beep(kind==='dup');
-}
+/* ===================== 声音 ===================== */
 let ac;
-function beep(low){
-  if(opts.vib&&navigator.vibrate)navigator.vibrate(low?[20,40,20]:40);
+function tone(freq,dur,vol){try{
+  ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+  if(ac.state==='suspended')ac.resume();
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.type='sine';o.frequency.value=freq;g.gain.value=.0001;o.connect(g);g.connect(ac.destination);
+  const n=ac.currentTime;
+  g.gain.exponentialRampToValueAtTime(vol||.25,n+.01);
+  g.gain.exponentialRampToValueAtTime(.0001,n+(dur||.12));
+  o.start(n);o.stop(n+(dur||.12)+.02)}catch(e){}}
+function sfx(kind){
+  if(opts.vib&&navigator.vibrate)navigator.vibrate(kind==='bad'?[60,50,60]:kind==='tick'?15:40);
   if(!opts.beep)return;
-  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
-    if(ac.state==='suspended')ac.resume();
-    const o=ac.createOscillator(),g=ac.createGain();
-    o.type='sine';o.frequency.value=low?520:950;g.gain.value=.0001;
-    o.connect(g);g.connect(ac.destination);
-    const n=ac.currentTime;
-    g.gain.exponentialRampToValueAtTime(.25,n+.01);
-    g.gain.exponentialRampToValueAtTime(.0001,n+.12);
-    o.start(n);o.stop(n+.13)}catch(e){}
+  if(kind==='item')tone(950,.12);
+  else if(kind==='start'){tone(700,.1);setTimeout(()=>tone(1050,.14),110)}
+  else if(kind==='stop'){tone(1050,.1);setTimeout(()=>tone(620,.18),110)}
+  else if(kind==='tick')tone(760,.07,.18);
+  else if(kind==='shot'){tone(1500,.05,.3);setTimeout(()=>tone(900,.07,.25),55)}
+  else if(kind==='bad')tone(300,.2,.3);
+  else if(kind==='dup')tone(520,.14);
 }
 
-/* ============ 摄像头 ============ */
+/* ===================== 摄像头 / 解码 ===================== */
 const video=document.getElementById('cam');
-let stream=null,track=null,detector=null,zxing=null,running=false,torch=false,facing='environment';
-const recent=new Map();
+let stream=null,track=null,detector=null,zxing=null,standby=false,engine='',facing='environment',torch=false;
+const seen=new Map();
 async function ensureEngine(){
   if('BarcodeDetector' in window){
-    try{detector=new BarcodeDetector({formats:await BarcodeDetector.getSupportedFormats()});return 'native'}catch(e){}
-  }
+    try{detector=new BarcodeDetector({formats:await BarcodeDetector.getSupportedFormats()});return 'native'}catch(e){}}
   await loadJS('https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js','ZXing');
   zxing=zxing||new ZXing.MultiFormatReader();zxing.setHints(new Map());
   return 'zxing';
 }
-async function start(){
-  if(running)return;
-  let engine;
-  try{engine=await ensureEngine()}catch(e){toast('扫码引擎不可用：'+e.message);return}
-  try{stream=await navigator.mediaDevices.getUserMedia({
-    video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:false})}
-  catch(e){toast('摄像头打开失败：'+e.name+'（需 HTTPS 且已授权）');return}
+function qSize(){const q=+opts.q||1080;return q>=1080?{w:1920,h:1080}:q>=720?{w:1280,h:720}:{w:854,h:480}}
+async function startStandby(){
+  if(standby)return;
+  try{engine=await ensureEngine()}catch(e){toast('扫码引擎不可用：'+e.message,3000);return}
+  const s=qSize();
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:facing},width:{ideal:s.w},height:{ideal:s.h},frameRate:{ideal:30}},
+      audio:!!opts.audio});
+  }catch(e){toast('摄像头打开失败：'+e.name+'（需 HTTPS 并授权）',4000);return}
   video.srcObject=stream;await video.play().catch(()=>{});
-  track=stream.getVideoTracks()[0];running=true;
-  document.getElementById('camhint').textContent=
-    (engine==='native'?'原生解码':'ZXing 解码')+(opts.photo?' · 自动拍照开':'')+' · 对准码';
+  track=stream.getVideoTracks()[0];standby=true;
+  const b=document.getElementById('bstandby');b.textContent='待机中';b.disabled=true;
+  hint();updEngineStatus();
   if(ac&&ac.state==='suspended')ac.resume();
-  loop(engine);
+  loop();
 }
-function stop(){running=false;
+async function quitStandby(){
+  if(cur)await stopOrder(true);
+  standby=false;
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;track=null}
-  video.srcObject=null;torch=false;document.getElementById('camhint').textContent='已停止'}
-let cv,cx,busy=false;
-async function loop(engine){
-  while(running){
+  video.srcObject=null;torch=false;
+  const b=document.getElementById('bstandby');b.textContent='开始待机';b.disabled=false;
+  document.getElementById('camhint').textContent='已关闭';updEngineStatus();
+}
+function hint(){document.getElementById('camhint').textContent=
+  (engine==='native'?'原生解码':'ZXing 解码')+' · '+(cur?'录制中，可扫商品码或控制卡':'待机中，对准面单')}
+function updEngineStatus(){
+  const t=document.getElementById('st-engine-t');
+  t.textContent=standby?('待机中 · '+(engine==='native'?'原生解码':'ZXing 解码')+(cur?' · 录制中':'')):'摄像头未启动';
+  document.getElementById('st-engine').classList.toggle('ok',standby);
+}
+const ONE_D=/CODE_?128|CODE_?39|CODE_?93|CODABAR|EAN|UPC|ITF|RSS|DATABAR/i;
+const TWO_D=/QR|DATA_?MATRIX|AZTEC|PDF_?417|MAXICODE/i;
+function wbOK(t){
+  if(opts.wbrule==='cn')return /^[A-Za-z]{0,4}[0-9]{8,24}$/.test(t);
+  if(opts.wbrule==='custom'&&opts.wbre){try{return new RegExp(opts.wbre).test(t)}catch(e){return true}}
+  return true;
+}
+function classify(text,fmt){
+  const t=String(text).trim();
+  if(opts.cmd&&/^\[CMD:[A-Z]+\d*\]$/i.test(t))return 'cmd';
+  if(TWO_D.test(fmt||''))return 'item';
+  if(ONE_D.test(fmt||''))return wbOK(t)?'waybill':'skip';
+  return purify(text).matched?'item':(wbOK(t)?'waybill':'skip');
+}
+let busy=false,cv,cx;
+async function loop(){
+  while(standby){
     try{
       if(video.readyState>=2&&!busy){
         let codes=[];
-        if(engine==='native'){codes=(await detector.detect(video)).map(c=>({text:c.rawValue,fmt:c.format}))}
+        if(engine==='native'){codes=(await detector.detect(video)).map(c=>({text:c.rawValue,fmt:String(c.format)}))}
         else{
           cv=cv||document.createElement('canvas');
           const w=video.videoWidth,h=video.videoHeight;
@@ -497,16 +597,17 @@ async function loop(engine){
             const d=cx.getImageData(0,0,cv.width,cv.height),lum=new Uint8ClampedArray(cv.width*cv.height);
             for(let i=0,j=0;i<d.data.length;i+=4,j++)lum[j]=(d.data[i]*306+d.data[i+1]*601+d.data[i+2]*117)>>10;
             try{const r=zxing.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(
-                  new ZXing.RGBLuminanceSource(lum,cv.width,cv.height))));
+              new ZXing.RGBLuminanceSource(lum,cv.width,cv.height))));
               if(r)codes=[{text:r.getText(),fmt:String(r.getBarcodeFormat())}]}catch(e){}
             zxing.reset&&zxing.reset();
           }
         }
+        const now=Date.now();
         for(const c of codes){
-          const now=Date.now();
-          if(now-(recent.get(c.text)||0)<2500)continue;
-          recent.set(c.text,now);if(recent.size>200)recent.clear();
-          busy=true;try{await addRaw(c.text,c.fmt,true)}finally{busy=false}
+          const prev=seen.get(c.text)||0,gap=now-prev;
+          seen.set(c.text,now);if(seen.size>400)seen.clear();
+          if(gap<1500)continue;
+          busy=true;try{await handle(c.text,c.fmt)}catch(e){}finally{busy=false}
         }
       }
     }catch(e){}
@@ -514,251 +615,558 @@ async function loop(engine){
   }
 }
 
-/* ============ 渲染 ============ */
-let shown=200;
-function renderCount(){
-  const ph=records.filter(r=>r.ph).length;
-  document.getElementById('hcount').innerHTML=records.length+' 条'+(ph?'<br>'+ph+' 张照片':'');
+/* ===================== 指令 / 分发 ===================== */
+function parseCmd(t){const m=String(t).trim().match(/^\[CMD:([A-Z]+)(\d*)\]$/i);
+  return m?{name:m[1].toUpperCase(),arg:m[2]===''?null:+m[2]}:null}
+async function handle(text,fmt){
+  const kind=classify(text,fmt);
+  if(kind==='skip')return;
+  if(kind==='cmd'){
+    const c=parseCmd(text);if(!c)return;
+    if(c.name==='STOP'){if(cur){toast('控制卡：停止并保存');await stopOrder()}else toast('当前没有在录')}
+    else if(c.name==='SNAP'){if(cur)snapWithDelay(c.arg==null?(+opts.snapdelay||0):c.arg);else toast('当前没有在录')}
+    else if(c.name==='PAUSE')pauseRec(true);
+    else if(c.name==='RESUME')pauseRec(false);
+    else if(c.name==='DISCARD'){if(cur){toast('控制卡：丢弃本段');await discardOrder()}}
+    else toast('未知指令：'+c.name);
+    return;
+  }
+  if(kind==='waybill'){
+    const no=String(text).trim();
+    if(!cur){await startOrder(no);return}
+    if(no===cur.no){if(+opts.samestop){toast('同单号：停止并保存');await stopOrder()}return}
+    if(opts.sw==='auto'){await stopOrder();await startOrder(no)}
+    else toast('已忽略新单号（设置里可改）',2200);
+    return;
+  }
+  if(!cur){toast('先扫面单开录，再扫商品',2200);sfx('bad');return}
+  await addItem(text,fmt);
 }
+
+/* ===================== 录像 ===================== */
+let cur=null,rec=null,chunks=[],recStart=0,pausedAt=0,pausedTotal=0,wake=null,durTimer=null,maxTimer=null;
+let mcv=null,mcx=null,mstream=null,mraf=0,fpsWin=[],liveOn=false;
+function pickMime(){
+  const c=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4',
+           'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  for(const m of c)if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m))return m;
+  return '';
+}
+function bitrate(){const q=+opts.q||1080;return q>=1080?4500000:q>=720?2500000:1200000}
+function markLines(o,now){
+  const l=[o.no+'   '+ts(now)];
+  if(opts.marksn){
+    const its=o.items.filter(i=>!i.snap);
+    l.push(its.length?(its.length+' 件：'+its.slice(-4).map(i=>i.v).join(' ')+(its.length>4?' …':'')):'尚未扫描商品');
+  }
+  return l;
+}
+function paintMark(x,W,H,lines){
+  const fs=Math.max(15,Math.round(W*.022)),pad=Math.round(W*.012);
+  x.textBaseline='top';
+  if(opts.markstyle==='bar'){
+    x.font='700 '+fs+'px ui-monospace,Menlo,monospace';
+    const w=Math.max(...lines.map((l,i)=>{x.font=(i?'600 '+Math.round(fs*.8):'700 '+fs)+'px ui-monospace,Menlo,monospace';
+      return x.measureText(l).width}));
+    const bh=lines.length*(fs*1.25)+pad*1.4;
+    x.fillStyle='rgba(0,0,0,.6)';x.fillRect(pad,H-bh-pad,Math.min(W-pad*2,w+pad*2),bh);
+    x.fillStyle='#fff';
+    lines.forEach((l,i)=>{x.font=(i?'600 '+Math.round(fs*.8):'700 '+fs)+'px ui-monospace,Menlo,monospace';
+      x.fillStyle=i?'#d8e6ff':'#fff';x.fillText(l,pad*2,H-bh-pad+pad*.7+i*fs*1.25)});
+  }else{
+    lines.forEach((l,i)=>{
+      x.font=(i?'600 '+Math.round(fs*.8):'700 '+fs)+'px ui-monospace,Menlo,monospace';
+      const y=H-pad*2-(lines.length-i)*fs*1.3+fs*.3;
+      x.lineWidth=Math.max(3,fs*.22);x.strokeStyle='rgba(0,0,0,.85)';x.lineJoin='round';
+      x.strokeText(l,pad*2,y);x.fillStyle='#fff';x.fillText(l,pad*2,y);
+    });
+  }
+}
+function startLivePipe(){
+  const W=video.videoWidth||1280,H=video.videoHeight||720;
+  mcv=document.createElement('canvas');mcv.width=W;mcv.height=H;
+  mcx=mcv.getContext('2d');
+  mstream=mcv.captureStream(30);
+  stream.getAudioTracks().forEach(t=>mstream.addTrack(t));
+  fpsWin=[];liveOn=true;
+  const draw=()=>{
+    if(!liveOn)return;
+    mraf=requestAnimationFrame(draw);
+    if(video.readyState<2)return;
+    mcx.drawImage(video,0,0,W,H);
+    if(cur)paintMark(mcx,W,H,markLines(cur,Date.now()));
+    const n=performance.now();fpsWin.push(n);
+    while(fpsWin.length&&n-fpsWin[0]>2000)fpsWin.shift();
+    if(fpsWin.length>40&&(fpsWin.length/2)<15){   // 2 秒内不足 30 帧 → <15fps
+      liveOn=false;cancelAnimationFrame(mraf);
+      toast('实时水印导致掉帧，已自动关闭（可用「补烧水印」事后加）',4500);
+      opts.livemark=false;lsSet(K.opt,opts);syncOpts();
+    }
+  };
+  draw();
+  return mstream;
+}
+function stopLivePipe(){liveOn=false;if(mraf)cancelAnimationFrame(mraf);mraf=0;mcv=null;mcx=null;mstream=null}
+async function startOrder(no){
+  if(cur)return;
+  if(!standby){toast('先点「开始待机」');return}
+  no=String(no).trim();
+  const old=orders.find(o=>o.no===no);
+  if(old){
+    if(opts.dup==='block'){sfx('bad');toast('单号 '+no+' 已录过（'+md(old.t)+'），已禁止重复录制',4000);return}
+    if(opts.dup==='warn'){sfx('bad');toast('注意：单号 '+no+' 之前录过（'+md(old.t)+'）',3500)}
+  }
+  const mime=pickMime();
+  cur={id:Date.now(),no,type:recType,t:Date.now(),items:[],mime,q:+opts.q,audio:!!opts.audio,lm:false};
+  chunks=[];pausedTotal=0;pausedAt=0;recStart=Date.now();
+  let src=stream;
+  if(opts.livemark){try{src=startLivePipe();cur.lm=true}catch(e){src=stream;cur.lm=false}}
+  try{
+    rec=new MediaRecorder(src,mime?{mimeType:mime,videoBitsPerSecond:bitrate()}:{});
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+    rec.start(1000);
+  }catch(e){rec=null;stopLivePipe();cur.lm=false;toast('录像启动失败：'+e.message+'（单据仍记录）',3500)}
+  if(opts.wake&&'wakeLock' in navigator){try{wake=await navigator.wakeLock.request('screen')}catch(e){}}
+  document.getElementById('recbadge').classList.add('on');
+  document.getElementById('recbadge').classList.remove('paused');
+  document.getElementById('curcard').style.display='';
+  document.getElementById('camno').textContent=no;
+  document.getElementById('bpause').textContent='暂停';
+  renderCur();hint();updEngineStatus();sfx('start');toast('开录：'+no,2200);
+  clearInterval(durTimer);durTimer=setInterval(tickDur,500);
+  clearTimeout(maxTimer);
+  const mx=(+opts.maxsec||0)*1000;
+  if(mx>0)maxTimer=setTimeout(()=>{if(cur){toast('已达最大录像时长，自动保存',3000);stopOrder()}},mx);
+}
+function elapsed(){return Date.now()-recStart-pausedTotal-(pausedAt?Date.now()-pausedAt:0)}
+function tickDur(){if(!cur)return;const e=mmss(elapsed());
+  document.getElementById('rectime').textContent=e;document.getElementById('curdur').textContent=e}
+function pauseRec(p){
+  if(!cur||!rec)return;
+  if(p&&rec.state==='recording'){rec.pause();pausedAt=Date.now();
+    document.getElementById('recbadge').classList.add('paused');
+    document.getElementById('bpause').textContent='继续';toast('已暂停')}
+  else if(!p&&rec.state==='paused'){pausedTotal+=Date.now()-pausedAt;pausedAt=0;rec.resume();
+    document.getElementById('recbadge').classList.remove('paused');
+    document.getElementById('bpause').textContent='暂停';toast('继续录制')}
+}
+function finishRec(){return new Promise(res=>{
+  if(!rec||rec.state==='inactive')return res(null);
+  rec.onstop=()=>{const b=chunks.length?new Blob(chunks,{type:rec.mimeType||'video/webm'}):null;chunks=[];res(b)};
+  try{rec.stop()}catch(e){res(null)}})}
+async function stopOrder(silent){
+  if(!cur)return;
+  const o=cur;cur=null;
+  clearInterval(durTimer);clearTimeout(maxTimer);
+  o.tEnd=Date.now();o.dur=Math.max(0,o.tEnd-o.t-pausedTotal);
+  const blob=await finishRec();rec=null;stopLivePipe();
+  if(wake){try{await wake.release()}catch(e){}wake=null}
+  if(blob&&blob.size){await DB.put('videos',{id:o.id,blob});o.vid=true;o.vsize=blob.size;o.vmime=blob.type}
+  else{o.vid=false;o.vsize=0}
+  if(!o.thumb&&o.items.length)o.thumb=o.items[0].thumb||null;
+  await DB.put('orders',o);orders.unshift(o);
+  document.getElementById('recbadge').classList.remove('on');
+  document.getElementById('curcard').style.display='none';
+  document.getElementById('camno').textContent='';
+  hint();updEngineStatus();renderOrders();updQuota();
+  if(!silent){sfx('stop');toast('已保存：'+o.no+'（'+o.items.filter(i=>!i.snap).length+' 件，'+mmss(o.dur)+'）',2600)}
+  pruneOld();
+}
+async function discardOrder(){
+  if(!cur)return;
+  const o=cur;cur=null;
+  clearInterval(durTimer);clearTimeout(maxTimer);
+  await finishRec();rec=null;chunks=[];stopLivePipe();
+  if(wake){try{await wake.release()}catch(e){}wake=null}
+  for(const it of o.items)if(it.ph)await DB.del('photos',it.ph);
+  document.getElementById('recbadge').classList.remove('on');
+  document.getElementById('curcard').style.display='none';
+  document.getElementById('camno').textContent='';
+  hint();updEngineStatus();sfx('bad');toast('已丢弃');
+}
+
+/* ===================== 商品 / 抓拍 ===================== */
+function flashCam(cls){const w=document.getElementById('camwrap');
+  w.classList.remove('shot','flash');void w.offsetWidth;w.classList.add(cls)}
+async function shoot(lines){
+  const w=video.videoWidth,h=video.videoHeight;
+  if(!w||!h)return null;
+  const MAX=+opts.size||1600,s=Math.min(1,MAX/Math.max(w,h));
+  const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
+  const x=c.getContext('2d');x.drawImage(video,0,0,c.width,c.height);
+  if(opts.mark&&lines&&lines.length)paintMark(x,c.width,c.height,lines);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
+  const tc=document.createElement('canvas'),k=Math.min(1,180/Math.max(c.width,c.height));
+  tc.width=Math.round(c.width*k);tc.height=Math.round(c.height*k);
+  tc.getContext('2d').drawImage(c,0,0,tc.width,tc.height);
+  flashCam('shot');
+  return {blob,thumb:tc.toDataURL('image/jpeg',.6),size:blob?blob.size:0};
+}
+async function addItem(raw,fmt){
+  const p=purify(raw);
+  if(!p.v){sfx('bad');toast('提纯结果为空');return}
+  if(cur.items.some(i=>i.v===p.v)){sfx('dup');toast('本单已有：'+p.v,1600);return}
+  const idx=cur.items.length+1;
+  const it={v:p.v,f:p.f,raw:String(raw),matched:p.matched,t:Date.now(),fmt:fmt||'',ph:null,thumb:null};
+  if(opts.photo){
+    const s=await shoot([cur.no+'   '+ts(it.t),p.v]);
+    if(s&&s.blob){const pid=cur.id+'#'+idx;await DB.put('photos',{id:pid,blob:s.blob});
+      it.ph=pid;it.thumb=s.thumb;it.psize=s.size}
+  }else flashCam('flash');
+  cur.items.push(it);
+  if(!cur.thumb)cur.thumb=it.thumb;
+  renderCur();sfx('item');
+  if(!p.matched)toast('无字段匹配，按原文记录：'+p.v,2400);
+}
+let cdTimer=null;
+function snapWithDelay(sec){
+  if(!cur)return;
+  sec=Math.max(0,Math.min(30,+sec||0));
+  if(cdTimer){toast('已有抓拍倒计时在走');return}
+  if(sec===0){doSnap();return}
+  const box=document.getElementById('countdown'),num=document.getElementById('cdnum');
+  let left=sec;box.classList.add('on');num.textContent=left;sfx('tick');
+  cdTimer=setInterval(()=>{left--;
+    if(left>0){num.textContent=left;sfx('tick')}
+    else{clearInterval(cdTimer);cdTimer=null;box.classList.remove('on');doSnap()}},1000);
+}
+async function doSnap(){
+  if(!cur)return;
+  sfx('shot');
+  const s=await shoot([cur.no+'   '+ts(Date.now()),'手动抓拍']);
+  if(s&&s.blob){
+    const pid=cur.id+'#s'+Date.now();
+    await DB.put('photos',{id:pid,blob:s.blob});
+    cur.items.push({v:'（抓拍）',f:{},raw:'',matched:false,t:Date.now(),fmt:'snap',ph:pid,thumb:s.thumb,psize:s.size,snap:true});
+    if(!cur.thumb)cur.thumb=s.thumb;
+    renderCur();toast('已抓拍');
+  }
+}
+
+/* ===================== 渲染 ===================== */
+function renderCur(){
+  if(!cur)return;
+  document.getElementById('curno').textContent=cur.no;
+  document.getElementById('curn').textContent=cur.items.filter(i=>!i.snap).length;
+  document.getElementById('curp').textContent=cur.items.filter(i=>i.ph).length;
+  document.getElementById('curitems').innerHTML=cur.items.slice().reverse().map((it,i)=>{
+    const no=cur.items.length-i;
+    return `<li><span class="n">${no}</span>${it.thumb?`<img src="${it.thumb}">`:''}
+      <span class="vv"${it.snap?' style="color:#6e7786"':''}>${esc(it.v)}</span></li>`}).join('');
+}
+function matchQ(o,q){return !q||o.no.toLowerCase().includes(q)||o.items.some(i=>String(i.v).toLowerCase().includes(q))}
 function filtered(){
   const q=document.getElementById('q').value.trim().toLowerCase();
-  if(!q)return records;
-  return records.filter(r=>r.raw.toLowerCase().includes(q)||r.v.toLowerCase().includes(q)||
-    Object.values(r.f||{}).some(v=>String(v).toLowerCase().includes(q)));
+  return orders.filter(o=>matchQ(o,q)&&(filt==='all'||(o.type||'out')===filt));
 }
-function renderRecs(){
-  const list=filtered(),ul=document.getElementById('recs');
-  document.getElementById('recsempty').style.display=list.length?'none':'';
-  const pc=primaryCol();
-  ul.innerHTML=list.slice(0,shown).map(r=>{
-    const other=Object.entries(r.f||{}).filter(([k])=>k!==pc).map(([k,v])=>esc(k)+'='+esc(v)).join('　');
-    return `<li data-id="${r.id}">
-      ${r.thumb?`<img class="th" src="${r.thumb}" data-act="view">`:'<div class="th none">—</div>'}
-      <div class="v"><b>${esc(r.v)}</b>
-        <small>${ts(r.t)} · ${esc(r.fmt||'')}${r.matched?'':' · <span style="color:var(--warn)">无字段匹配</span>'}
-        ${other?'<br>'+other:''}<br>${esc(visRaw(r.raw))}</small></div>
-      <button class="x" data-act="copy">⧉</button><button class="x" data-act="del">✕</button></li>`}).join('');
-  document.getElementById('morewrap').style.display=list.length>shown?'':'none';
+function renderOrders(){
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const all=orders.filter(o=>matchQ(o,q));
+  document.querySelectorAll('.chip').forEach(c=>{
+    const f=c.dataset.f,n=f==='all'?all.length:all.filter(o=>(o.type||'out')===f).length;
+    c.textContent=(f==='all'?'全部':f==='out'?'发货':'退货')+' ('+n+')';
+    c.classList.toggle('on',filt===f)});
+  const list=filtered();
+  document.getElementById('ordsempty').style.display=list.length?'none':'';
+  const groups=[];
+  list.forEach(o=>{const d=dayLabel(o.t);
+    if(!groups.length||groups[groups.length-1].d!==d)groups.push({d,items:[]});
+    groups[groups.length-1].items.push(o)});
+  document.getElementById('ordwrap').innerHTML=groups.map(g=>
+    `<div class="daygrp"><b>${esc(g.d)}</b><span>${g.items.length} 条</span></div>
+     <ul class="ords">${g.items.map(o=>{
+       const n=o.items.filter(i=>!i.snap).length,ph=o.items.filter(i=>i.ph).length;
+       return `<li data-id="${o.id}">
+         <span class="bar ${(o.type||'out')==='ret'?'ret':''}"></span>
+         <span class="thumb">${o.thumb?`<img src="${o.thumb}">`:'<span class="none">📦</span>'}
+           ${o.dur?`<span class="dur">${mmss(o.dur)}</span>`:''}</span>
+         <span class="mid"><b>${esc(o.no)}</b><div class="t">${md(o.t)}</div>
+           ${o.vid?'<span class="mini b">📹 '+kb(o.vsize)+'</span>':'<span class="mini r">无视频</span>'}
+           ${o.lm?'<span class="mini g">水印</span>':''}
+           ${n?'<span class="mini g">'+n+' 件</span>':''}
+           ${ph?'<span class="mini o">'+ph+' 图</span>':''}</span>
+         <span class="chev">›</span></li>`}).join('')}</ul>`).join('');
 }
 function renderRules(){
   document.getElementById('rules').innerHTML=rules.map((r,i)=>`<div class="rule ${r.on?'':'off'}" data-i="${i}">
-    <div class="hd">
-      <input type="checkbox" ${r.on?'checked':''} data-f="on" style="width:20px;height:20px;flex:0 0 auto;accent-color:var(--accent)">
+    <div class="hd"><label class="sw" style="width:46px;height:28px"><input type="checkbox" ${r.on?'checked':''} data-f="on"><i></i></label>
       <input type="text" value="${esc(r.col||'')}" data-f="col" placeholder="列名">
-      <button class="star ${r.primary?'on':''}" data-act="star" title="设为主值">★</button>
-    </div>
+      <button class="star ${r.primary?'on':''}" data-act="star">★</button></div>
     <label class="fld"><span>正则</span><input type="text" class="mono" value="${esc(r.pattern||'')}" data-f="pattern" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-    <div class="row">
-      <label class="fld" style="flex:2"><span>输出模板</span><input type="text" class="mono" value="${esc(r.tpl||'$0')}" data-f="tpl" autocapitalize="off" spellcheck="false"></label>
-      <label class="fld" style="flex:1"><span>flags</span><input type="text" class="mono" value="${esc(r.flags||'')}" data-f="flags" placeholder="i" autocapitalize="off" spellcheck="false"></label>
-    </div>
+    <div class="row"><label class="fld" style="flex:2"><span>输出模板</span><input type="text" class="mono" value="${esc(r.tpl||'$0')}" data-f="tpl" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld" style="flex:1"><span>flags</span><input type="text" class="mono" value="${esc(r.flags||'')}" data-f="flags" placeholder="i" autocapitalize="off" spellcheck="false"></label></div>
     <div class="row"><button class="btn sm" data-act="up">上移</button><button class="btn sm" data-act="down">下移</button><button class="btn sm bad" data-act="del">删除</button></div>
-    <div class="test"><label class="fld"><span>测试输入</span><input type="text" class="mono" data-f="sample" value="${esc(r.sample||'')}" placeholder="贴原始内容，分隔符可直接写 &lt;GS&gt;" autocapitalize="off" spellcheck="false"></label>
+    <div class="test"><label class="fld"><span>测试输入</span><input type="text" class="mono" data-f="sample" value="${esc(r.sample||'')}" placeholder="分隔符可直接写 &lt;GS&gt;" autocapitalize="off" spellcheck="false"></label>
       <div class="out" id="out${i}"></div></div></div>`).join('');
   rules.forEach((r,i)=>testRule(i));
+  const el=document.getElementById('fieldsum');if(el)el.textContent=cols().join(' · ')||'未配置';
 }
-function testRule(i){
-  const r=rules[i],out=document.getElementById('out'+i);if(!out)return;
+function testRule(i){const r=rules[i],out=document.getElementById('out'+i);if(!out)return;
   if(!r.sample){out.innerHTML='<span style="color:var(--dim)">—</span>';return}
-  let re;try{re=new RegExp(r.pattern,r.flags||'')}
-  catch(e){out.innerHTML='<span style="color:var(--bad)">正则语法错误：'+esc(e.message)+'</span>';return}
+  let re;try{re=new RegExp(r.pattern,r.flags||'')}catch(e){out.innerHTML='<span style="color:var(--red)">正则语法错误：'+esc(e.message)+'</span>';return}
   const m=String(r.sample).match(re);
   if(!m){out.innerHTML='<span style="color:var(--warn)">不匹配</span>';return}
-  out.innerHTML='→ <span style="color:var(--accent);font-weight:700">'+esc(applyTpl(r.tpl,m))+'</span>';
-}
+  out.innerHTML='→ <span style="color:var(--green);font-weight:700">'+esc(applyTpl(r.tpl,m))+'</span>'}
 function syncOpts(){
-  ['dedup','beep','vib','auto','photo','mark'].forEach(k=>document.getElementById('o-'+k).checked=!!opts[k]);
-  document.getElementById('o-nomatch').value=opts.nomatch;
-  document.getElementById('o-size').value=String(opts.size);
-  document.getElementById('o-name').value=opts.name;
-  document.getElementById('o-remind').value=String(opts.remind);
-  nameDemo();
-}
-function nameDemo(){
-  const demo={t:Date.now(),v:(records[0]&&records[0].v)||'1AB2345678',raw:'<GS>…',f:(records[0]&&records[0].f)||{}};
-  document.getElementById('namedemo').innerHTML='示例：<code>'+esc(fileName(demo,1))+'</code>';
+  ['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib'].forEach(k=>{
+    const e=document.getElementById('o-'+k);if(e)e.checked=!!opts[k]});
+  [['wbrule','wbrule'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],['maxsec','maxsec'],
+   ['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep']].forEach(([id,k])=>{
+    const e=document.getElementById('o-'+id);if(e)e.value=String(opts[k])});
+  const w=document.getElementById('o-wbre');if(w)w.value=opts.wbre||'';
+  document.getElementById('row-wbre').style.display=opts.wbrule==='custom'?'':'none';
 }
 async function updQuota(){
-  const el=document.getElementById('qtext'),bar=document.getElementById('qbar');
-  const psize=records.reduce((a,r)=>a+(r.psize||0),0);
-  let line=records.length+' 条记录，'+records.filter(r=>r.ph).length+' 张照片，照片共约 '+kb(psize);
-  try{
-    const e=await navigator.storage.estimate();
-    if(e&&e.quota){const pct=Math.min(100,e.usage/e.quota*100);
-      bar.style.width=pct.toFixed(1)+'%';
-      line+='｜浏览器已用 '+kb(e.usage)+' / 可用上限 '+kb(e.quota)+'（'+pct.toFixed(1)+'%）';}
-  }catch(e){}
-  el.textContent=line;
+  const vs=orders.reduce((a,o)=>a+(o.vsize||0),0);
+  let line=orders.length+' 单，视频共 '+kb(vs);
+  let short='占用 '+kb(vs);
+  try{const e=await navigator.storage.estimate();
+    if(e&&e.quota){const p=Math.min(100,e.usage/e.quota*100);
+      const bar=document.getElementById('qbar');if(bar)bar.style.width=p.toFixed(1)+'%';
+      line+='｜浏览器已用 '+kb(e.usage)+' / 上限 '+kb(e.quota)+'（'+p.toFixed(1)+'%）';
+      short='占用 '+kb(e.usage)+' · 剩余 '+kb(Math.max(0,e.quota-e.usage))}}catch(e){}
+  const a=document.getElementById('qtext');if(a)a.textContent=line;
+  const b=document.getElementById('st-usage');if(b)b.textContent=short;
+  const c=document.getElementById('st-store-t');if(c)c.textContent=short;
 }
 async function updPersist(){
-  const el=document.getElementById('persist');
-  try{
-    let p=await navigator.storage.persisted();
-    if(!p)p=await navigator.storage.persist();
-    el.innerHTML=p?'✅ 已申请持久化存储，系统清理空间时不会优先删掉这里的数据'
-      :'⚠️ 未获得持久化存储授权，手机空间紧张时系统<b>可能</b>清掉这里的数据 —— 请养成定期导出备份的习惯';
-  }catch(e){el.textContent='（此浏览器不支持持久化存储查询）'}
+  const el=document.getElementById('persist');if(!el)return;
+  try{let p=await navigator.storage.persisted();if(!p)p=await navigator.storage.persist();
+    el.innerHTML=p?'✅ 已获得持久化存储授权':'⚠️ 未获持久化授权，手机空间紧张时数据<b>可能</b>被系统清理，请定期导出'}
+  catch(e){el.textContent='（浏览器不支持持久化查询）'}
 }
-function checkRemind(){
-  const n=+opts.remind||0;if(!n)return;
-  const since=records.length-(lsGet(K.bk,{count:0}).count||0);
-  if(since>0&&since%n===0)toast('已经 '+since+' 条没备份了，建议去「设置 → 导出完整备份」',4000);
-}
-function bkInfo(){
-  const b=lsGet(K.bk,null);
-  document.getElementById('bkinfo').textContent=b?('上次备份：'+ts(b.t)+'，当时 '+b.count+' 条'):'还没备份过';
+function bkInfo(){const b=lsGet(K.bk,null),el=document.getElementById('bkinfo');
+  if(el)el.textContent=b?('上次备份：'+ts(b.t)+'，当时 '+b.count+' 单'):'还没备份过'}
+async function pruneOld(){
+  const d=+opts.keep||0;if(!d)return;
+  const cut=Date.now()-d*86400000;let n=0;
+  for(const o of orders)if(o.vid&&o.t<cut){await DB.del('videos',o.id);o.vid=false;o.vsize=0;await DB.put('orders',o);n++}
+  if(n){renderOrders();updQuota();toast('已自动清理 '+n+' 段过期视频',2600)}
 }
 
-/* ============ 导出 ============ */
-function csvOf(list){
+/* ===================== 单据详情 / 补烧 ===================== */
+let vurl=null;
+async function openOrder(o){
+  const body=document.getElementById('vbody');
+  document.getElementById('vtitle').textContent=o.no;
+  if(vurl){URL.revokeObjectURL(vurl);vurl=null}
+  const items=o.items.filter(i=>!i.snap),snaps=o.items.filter(i=>i.snap);
+  body.innerHTML=`
+    ${o.vid?`<div class="card" style="margin-top:12px;padding:10px"><video id="ovid" controls playsinline style="width:100%"></video></div>`:''}
+    <div class="card">
+      <div class="hint">${(o.type||'out')==='ret'?'拆包退货':'打包发货'}　${ts(o.t)}　时长 ${mmss(o.dur||0)}　${o.q||''}p${o.audio?' · 有声':' · 静音'}${o.lm?' · 已带水印':''}<br>
+        ${items.length} 件商品 · ${o.items.filter(i=>i.ph).length} 张照片 · 视频 ${o.vid?kb(o.vsize):'无'}</div>
+      <div class="row" style="margin-top:11px">
+        <button class="btn sm" id="ocopy">复制序列号</button>
+        <button class="btn sm" id="ovideo" ${o.vid?'':'disabled'}>导出视频</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm pri" id="oburn" ${o.vid?'':'disabled'}>补烧水印并导出</button>
+        <button class="btn sm bad" id="odel">删除本单</button>
+      </div>
+      <div class="pbar" id="burnbar" style="display:none"><i></i></div>
+      <div class="hint" id="burntip"></div>
+    </div>
+    <div class="card"><div class="hint" style="margin-bottom:6px">商品（${items.length}）</div>
+      <ul class="items" style="max-height:none">${items.map((i,k)=>`<li style="border-color:var(--line)">
+        <span class="n" style="color:var(--dim)">${k+1}</span>
+        ${i.thumb?`<img src="${i.thumb}" data-ph="${i.ph||''}">`:''}
+        <span class="vv">${esc(i.v)}</span></li>`).join('')||'<li style="color:var(--dim)">无</li>'}</ul></div>
+    ${snaps.length?`<div class="card"><div class="hint" style="margin-bottom:6px">手动抓拍（${snaps.length}）</div>
+      <ul class="items" style="max-height:none">${snaps.map((i,k)=>`<li style="border-color:var(--line)">
+        <span class="n" style="color:var(--dim)">${k+1}</span><img src="${i.thumb}" data-ph="${i.ph||''}">
+        <span class="vv" style="color:var(--dim)">${ts(i.t)}</span></li>`).join('')}</ul></div>`:''}
+    <div style="height:14px"></div>`;
+  document.getElementById('viewer').classList.add('on');
+  if(o.vid){const v=await DB.get('videos',o.id);
+    if(v&&v.blob){vurl=URL.createObjectURL(v.blob);const e=document.getElementById('ovid');if(e)e.src=vurl}}
+  document.getElementById('ocopy').onclick=()=>copy(items.map(i=>i.v).join('\n'));
+  document.getElementById('ovideo').onclick=async()=>{const v=await DB.get('videos',o.id);
+    if(v&&v.blob)dl(v.blob,sanitize(ymd(o.t)+'-'+hmsf(o.t)+'_'+o.no)+extOf(v.blob.type))};
+  document.getElementById('oburn').onclick=()=>burn(o);
+  document.getElementById('odel').onclick=async()=>{
+    if(!confirm('删除单据 '+o.no+'？视频和照片一并删除，不可恢复。'))return;
+    await DB.del('orders',o.id);if(o.vid)await DB.del('videos',o.id);
+    for(const it of o.items)if(it.ph)await DB.del('photos',it.ph);
+    orders=orders.filter(x=>x.id!==o.id);closeViewer();renderOrders();updQuota();toast('已删除')};
+  body.querySelectorAll('img[data-ph]').forEach(im=>im.onclick=async()=>{
+    const id=im.dataset.ph;if(!id)return;const p=await DB.get('photos',id);
+    if(p&&p.blob)dl(p.blob,sanitize(id.replace('#','_'))+'.jpg')});
+}
+function extOf(m){return /mp4/.test(m||'')?'.mp4':'.webm'}
+function closeViewer(){document.getElementById('viewer').classList.remove('on');
+  if(vurl){URL.revokeObjectURL(vurl);vurl=null}}
+document.getElementById('vclose').onclick=closeViewer;
+
+async function burn(o){
+  const r0=await DB.get('videos',o.id);
+  if(!r0||!r0.blob){toast('没有视频');return}
+  const bar=document.getElementById('burnbar'),tip=document.getElementById('burntip'),btn=document.getElementById('oburn');
+  bar.style.display='';btn.disabled=true;
+  try{
+    const v=document.createElement('video');
+    v.src=URL.createObjectURL(r0.blob);v.playsInline=true;
+    await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=()=>rej(new Error('视频无法解码'))});
+    const W=v.videoWidth||1280,H=v.videoHeight||720;
+    const c=document.createElement('canvas');c.width=W;c.height=H;
+    const x=c.getContext('2d');
+    const out=c.captureStream(30);
+    try{const s=v.captureStream?v.captureStream():null;
+      if(s)s.getAudioTracks().forEach(t=>out.addTrack(t))}catch(e){}
+    const mime=pickMime();
+    const mr=new MediaRecorder(out,mime?{mimeType:mime,videoBitsPerSecond:bitrate()}:{});
+    const cs=[];mr.ondataavailable=e=>{if(e.data&&e.data.size)cs.push(e.data)};
+    const done=new Promise(res=>{mr.onstop=()=>res(new Blob(cs,{type:mr.mimeType||'video/webm'}))});
+    function draw(){
+      if(v.ended||v.paused)return;
+      x.drawImage(v,0,0,W,H);
+      paintMark(x,W,H,markLines(o,o.t+v.currentTime*1000));
+      const p=v.duration?Math.min(100,v.currentTime/v.duration*100):0;
+      bar.firstElementChild.style.width=p.toFixed(1)+'%';
+      tip.textContent='补烧中 '+p.toFixed(0)+'%　还要 '+mmss((v.duration-v.currentTime)*1000)+'，别切走页面';
+      requestAnimationFrame(draw);
+    }
+    mr.start(1000);await v.play();draw();
+    await new Promise(res=>{v.onended=res});
+    mr.stop();
+    const blob=await done;URL.revokeObjectURL(v.src);
+    dl(blob,sanitize(ymd(o.t)+'-'+hmsf(o.t)+'_'+o.no+'_水印')+extOf(blob.type));
+    bar.firstElementChild.style.width='100%';tip.textContent='已导出带水印的视频';
+    toast('补烧完成，已导出',3000);
+  }catch(e){tip.textContent='补烧失败：'+e.message;toast('补烧失败：'+e.message,3500)}
+  finally{btn.disabled=false}
+}
+
+/* ===================== 导出 ===================== */
+function csvAll(list){
   const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
-  const cs=cols();list.forEach(r=>Object.keys(r.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)}));
-  const head=['序号','时间',...cs,'原始内容','照片文件名','码制'];
-  const rows=[head];
-  list.forEach((r,i)=>rows.push([i+1,ts(r.t),...cs.map(c=>(r.f&&r.f[c]!=null)?r.f[c]:''),
-    visRaw(r.raw),r.ph?fileName(r,i+1):'',r.fmt||'']));
+  const cs=cols();list.forEach(o=>o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)})));
+  const rows=[['单号','类型','开始时间','时长','序号','主值',...cs,'原始内容','有照片','码制']];
+  list.forEach(o=>{const tp=(o.type||'out')==='ret'?'退货':'发货';
+    if(!o.items.length)rows.push([o.no,tp,ts(o.t),mmss(o.dur||0),'','',...cs.map(()=>''),'','','']);
+    o.items.forEach((i,k)=>rows.push([o.no,tp,ts(o.t),mmss(o.dur||0),k+1,i.v,
+      ...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'是':'',i.fmt||'']))});
   return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
 }
-const stamp=()=>ymd(Date.now())+'-'+hms(Date.now());
-async function buildZip(list,withBackup){
-  await loadJS('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','JSZip');
-  const zip=new JSZip();
-  zip.file('记录.csv',csvOf(list));
-  let n=0;const names=new Set();
-  const ph=zip.folder('photos');
-  for(let i=0;i<list.length;i++){
-    const r=list[i];if(!r.ph)continue;
-    const rec=await DB.get('photos',r.id);if(!rec||!rec.blob)continue;
-    let nm=fileName(r,i+1),base=nm.replace(/\.jpg$/,''),k=2;
-    while(names.has(nm)){nm=base+'-'+k+'.jpg';k++}
-    names.add(nm);ph.file(nm,rec.blob);n++;
-    if(i%20===0)toast('打包中… '+n+' 张照片',60000);
-  }
-  if(withBackup)zip.file('backup.json',JSON.stringify({ver:2,t:Date.now(),rules,opts,records:list},null,1));
-  const blob=await zip.generateAsync({type:'blob',compression:'STORE'});
-  return {blob,photos:n};
+const stampNow=()=>ymd(Date.now())+'-'+hmsf(Date.now());
+
+/* ===================== 控制卡 ===================== */
+const CMDS=[
+  {code:'[CMD:STOP]',   t:'停止并保存',   d:'封箱后一晃，本单结束入库'},
+  {code:'[CMD:SNAP]',   t:'抓拍 · 默认延时',d:'用设置里的倒计时秒数'},
+  {code:'[CMD:SNAP0]',  t:'抓拍 · 立即',   d:'不倒计时，马上拍'},
+  {code:'[CMD:SNAP3]',  t:'抓拍 · 3 秒',   d:'倒计时 3 秒后拍'},
+  {code:'[CMD:SNAP5]',  t:'抓拍 · 5 秒',   d:'倒计时 5 秒后拍'},
+  {code:'[CMD:PAUSE]',  t:'暂停',         d:'中途离开时用'},
+  {code:'[CMD:RESUME]', t:'继续',         d:'接着录同一段'},
+  {code:'[CMD:DISCARD]',t:'丢弃本段',     d:'扫错单了，丢掉重来'}
+];
+async function renderCards(){
+  const box=document.getElementById('cardsbox');
+  box.innerHTML=CMDS.map(c=>`<div class="ccard"><canvas data-code="${esc(c.code)}"></canvas>
+    <div class="t">${esc(c.t)}</div><div class="s">${esc(c.code)}</div>
+    <div class="s" style="color:#888">${esc(c.d)}</div></div>`).join('');
+  try{
+    await loadJS('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js','QRCode');
+    for(const cv of box.querySelectorAll('canvas'))
+      await QRCode.toCanvas(cv,cv.dataset.code,{width:420,margin:1,errorCorrectionLevel:'H'});
+  }catch(e){box.insertAdjacentHTML('afterbegin',
+    '<div class="hint" style="grid-column:1/-1;color:var(--red)">二维码生成失败（首次需联网一次）：'+esc(e.message)+'</div>')}
 }
 
-/* ============ 事件 ============ */
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.tab));
-  if(b.dataset.tab==='set'){updQuota();nameDemo();bkInfo()}
-});
-document.getElementById('bstart').onclick=start;
-document.getElementById('bstop').onclick=stop;
-document.getElementById('btorch').onclick=async()=>{
-  if(!track){toast('先开始扫码');return}
+/* ===================== 路由 / 事件 ===================== */
+function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+id));
+  window.scrollTo(0,0);const m=document.querySelector('.page.on');if(m)m.scrollTop=0}
+document.getElementById('go-out').onclick=()=>{recType='out';
+  document.getElementById('rectitle').textContent='打包发货录像';show('rec')};
+document.getElementById('go-ret').onclick=()=>{recType='ret';
+  document.getElementById('rectitle').textContent='拆包退货录像';show('rec')};
+document.getElementById('go-store').onclick=()=>{show('store');updQuota();bkInfo()};
+document.getElementById('goset').onclick=()=>show('set');
+document.getElementById('gofields').onclick=()=>{renderRules();show('fields')};
+document.getElementById('recback').onclick=async()=>{if(cur&&!confirm('当前正在录制，离开会停止并保存。继续？'))return;
+  if(cur)await stopOrder();show('home')};
+document.getElementById('setback').onclick=()=>show('home');
+document.getElementById('storeback').onclick=()=>show('home');
+document.getElementById('fieldsback').onclick=()=>show('home');
+document.getElementById('cardsback').onclick=()=>show('set');
+document.getElementById('row-cards').onclick=async()=>{show('cards');await renderCards()};
+document.getElementById('reccards').onclick=async()=>{show('cards');await renderCards()};
+document.getElementById('row-fields').onclick=()=>{renderRules();show('fields')};
+document.getElementById('bprint').onclick=()=>window.print();
+document.getElementById('st-store').onclick=()=>{show('store');updQuota();bkInfo()};
+document.getElementById('st-engine').onclick=()=>show('rec');
+
+document.getElementById('bstandby').onclick=startStandby;
+document.getElementById('bquit').onclick=quitStandby;
+document.getElementById('btorch').onclick=async()=>{if(!track){toast('先开始待机');return}
   torch=!torch;try{await track.applyConstraints({advanced:[{torch}]})}catch(e){toast('这台设备不支持手电筒')}};
-document.getElementById('bswitch').onclick=async()=>{facing=facing==='environment'?'user':'environment';stop();await start()};
-document.getElementById('bcopylast').onclick=()=>copy(lastRec&&lastRec.v);
-document.getElementById('bcopylastraw').onclick=()=>copy(lastRec&&lastRec.raw);
-document.getElementById('bundo').onclick=async()=>{
-  if(!lastRec)return;
-  await DB.del('records',lastRec.id);if(lastRec.ph)await DB.del('photos',lastRec.id);
-  records=records.filter(r=>r.id!==lastRec.id);lastRec=null;
-  document.getElementById('lastcard').style.display='none';
-  renderRecs();renderCount();updQuota();toast('已撤销')};
-document.getElementById('bmanual').onclick=async()=>{
-  const ta=document.getElementById('manual');
-  const lines=ta.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if(!lines.length){toast('先粘贴内容');return}
-  let n=0;for(const l of lines){if(await addRaw(l,'manual',false))n++}
-  ta.value='';toast('入库 '+n+' 条')};
-['dedup','beep','vib','auto','photo','mark'].forEach(k=>{
-  document.getElementById('o-'+k).onchange=e=>{opts[k]=e.target.checked;lsSet(K.opt,opts)}});
-document.getElementById('o-nomatch').onchange=e=>{opts.nomatch=e.target.value;lsSet(K.opt,opts)};
-document.getElementById('o-size').onchange=e=>{opts.size=+e.target.value;lsSet(K.opt,opts)};
-document.getElementById('o-name').oninput=e=>{opts.name=e.target.value;lsSet(K.opt,opts);nameDemo()};
-document.getElementById('o-remind').oninput=e=>{opts.remind=Math.max(0,parseInt(e.target.value,10)||0);lsSet(K.opt,opts)};
+document.getElementById('bswitch').onclick=async()=>{if(cur){toast('录制中不能切换摄像头');return}
+  facing=facing==='environment'?'user':'environment';await quitStandby();await startStandby()};
+document.getElementById('bstop').onclick=()=>stopOrder();
+document.getElementById('bsnap').onclick=()=>snapWithDelay(+opts.snapdelay||0);
+document.getElementById('bpause').onclick=()=>pauseRec(rec&&rec.state==='recording');
+document.getElementById('bdiscard').onclick=async()=>{if(cur&&confirm('丢弃当前这段录像和已扫商品？'))await discardOrder()};
+document.getElementById('bmanualstart').onclick=async()=>{
+  const el=document.getElementById('manualno'),no=el.value.trim();
+  if(!no){toast('先输入单号');return}
+  if(cur)await stopOrder();
+  await startOrder(no);el.value=''};
 
-document.getElementById('q').oninput=()=>{shown=200;renderRecs()};
-document.getElementById('bmore').onclick=()=>{shown+=200;renderRecs()};
-document.getElementById('recs').onclick=async e=>{
-  const b=e.target.closest('[data-act]');if(!b)return;
-  const li=b.closest('li');const rec=records.find(r=>String(r.id)===li.dataset.id);if(!rec)return;
-  const a=b.dataset.act;
-  if(a==='copy')copy(rec.v);
-  else if(a==='view')openViewer(rec);
-  else{await DB.del('records',rec.id);if(rec.ph)await DB.del('photos',rec.id);
-    records=records.filter(r=>r!==rec);renderRecs();renderCount();updQuota()}};
-document.getElementById('bcopyall').onclick=()=>copy(filtered().map(r=>r.v).join('\n'));
-document.getElementById('bcsv').onclick=()=>{
-  const l=filtered();if(!l.length){toast('没有记录');return}
-  dl(new Blob([csvOf(l)],{type:'text/csv'}),'scans-'+stamp()+'.csv');toast('已导出 '+l.length+' 条')};
-document.getElementById('bzip').onclick=async()=>{
-  const l=filtered();if(!l.length){toast('没有记录');return}
-  const btn=document.getElementById('bzip');btn.disabled=true;
-  try{const {blob,photos}=await buildZip(l,false);
-    dl(blob,'scans-'+stamp()+'.zip');toast('已导出 '+l.length+' 条、'+photos+' 张照片',3000)}
-  catch(e){toast('导出失败：'+e.message,3000)}finally{btn.disabled=false}};
-document.getElementById('brerun').onclick=async()=>{
-  if(!records.length)return;
-  if(!confirm('用当前字段重新提纯全部 '+records.length+' 条？原始内容和照片不变。'))return;
-  for(const r of records){const p=purify(r.raw);r.v=p.v;r.f=p.f;r.matched=p.matched;await DB.put('records',r)}
-  renderRecs();toast('已重算')};
-document.getElementById('bclear').onclick=async()=>{
-  if(!records.length)return;
-  if(!confirm('清空全部 '+records.length+' 条记录和照片？不可恢复。建议先导出备份。'))return;
-  await DB.clear('records');await DB.clear('photos');records=[];lastRec=null;
-  document.getElementById('lastcard').style.display='none';
-  renderRecs();renderCount();updQuota();toast('已清空')};
-document.getElementById('bdelphotos').onclick=async()=>{
-  const n=records.filter(r=>r.ph).length;if(!n){toast('没有照片');return}
-  if(!confirm('删除全部 '+n+' 张照片？记录会保留。'))return;
-  await DB.clear('photos');
-  for(const r of records){if(r.ph){r.ph=false;r.thumb=null;r.psize=0;await DB.put('records',r)}}
-  renderRecs();renderCount();updQuota();toast('照片已删除')};
+['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib'].forEach(k=>{
+  const e=document.getElementById('o-'+k);if(e)e.onchange=ev=>{opts[k]=ev.target.checked;lsSet(K.opt,opts);
+    if(k==='livemark'&&ev.target.checked)toast('实时水印会在下一单生效',2400)}});
+const selMap=[['wbrule','wbrule',v=>v],['dup','dup',v=>v],['switch','sw',v=>v],['samestop','samestop',v=>+v],
+  ['q','q',v=>+v],['maxsec','maxsec',v=>+v],['markstyle','markstyle',v=>v],['snapdelay','snapdelay',v=>+v],
+  ['size','size',v=>+v],['keep','keep',v=>+v]];
+selMap.forEach(([id,k,f])=>{const e=document.getElementById('o-'+id);
+  if(e)e.onchange=ev=>{opts[k]=f(ev.target.value);lsSet(K.opt,opts);
+    if(id==='wbrule')document.getElementById('row-wbre').style.display=opts.wbrule==='custom'?'':'none';
+    if(id==='q'&&standby&&!cur)toast('画质下次开待机时生效',2400)}});
+document.getElementById('o-wbre').oninput=e=>{opts.wbre=e.target.value;lsSet(K.opt,opts)};
 
-/* 备份 / 恢复 */
-document.getElementById('bbackup').onclick=async()=>{
-  const btn=document.getElementById('bbackup');btn.disabled=true;
-  try{const {blob,photos}=await buildZip(records,true);
-    dl(blob,'qrc-backup-'+stamp()+'.zip');
-    lsSet(K.bk,{t:Date.now(),count:records.length});bkInfo();
-    toast('备份完成：'+records.length+' 条、'+photos+' 张照片',3000)}
-  catch(e){toast('备份失败：'+e.message,3000)}finally{btn.disabled=false}};
-document.getElementById('brestore').onclick=()=>{
-  const inp=document.createElement('input');inp.type='file';inp.accept='.zip,.json';
-  inp.onchange=async()=>{
-    const f=inp.files[0];if(!f)return;
-    try{
-      let data,photos=null;
-      if(f.name.toLowerCase().endsWith('.json')){data=JSON.parse(await f.text())}
-      else{
-        await loadJS('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','JSZip');
-        const zip=await JSZip.loadAsync(f);
-        const bj=zip.file('backup.json');
-        if(!bj)throw new Error('这个 ZIP 里没有 backup.json，不是完整备份');
-        data=JSON.parse(await bj.async('string'));photos=zip.folder('photos');
-      }
-      if(!data||!Array.isArray(data.records))throw new Error('备份格式不对');
-      const mode=records.length?(confirm('当前有 '+records.length+' 条记录。\n\n确定 = 合并（按主值去重）\n取消 = 先清空再恢复')?'merge':'replace'):'merge';
-      if(mode==='replace'){await DB.clear('records');await DB.clear('photos');records=[]}
-      const have=new Set(records.map(r=>r.v));
-      let n=0,np=0;
-      for(let i=0;i<data.records.length;i++){
-        const r=data.records[i];
-        if(mode==='merge'&&have.has(r.v))continue;
-        have.add(r.v);
-        if(r.ph&&photos){
-          const nm=fileName(r,i+1);
-          let fh=photos.file(nm)||photos.file(new RegExp('^'+nm.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\\\.jpg$/,'')+'(-\\d+)?\\.jpg$'))[0];
-          if(fh&&fh.async){const blob=await fh.async('blob');await DB.put('photos',{id:r.id,blob});np++}
-          else{r.ph=false;r.thumb=r.thumb||null}
-        }
-        await DB.put('records',r);records.push(r);n++;
-      }
-      if(data.rules&&Array.isArray(data.rules)){rules=data.rules;lsSet(K.rul,rules);renderRules()}
-      if(data.opts){opts=Object.assign(opts,data.opts);lsSet(K.opt,opts);syncOpts()}
-      records.sort((a,b)=>b.t-a.t);
-      renderRecs();renderCount();updQuota();
-      toast('恢复完成：新增 '+n+' 条、'+np+' 张照片',3500);
-    }catch(e){toast('恢复失败：'+e.message,4000)}
-  };
+document.getElementById('q').oninput=renderOrders;
+document.getElementById('qclear').onclick=()=>{document.getElementById('q').value='';renderOrders()};
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{filt=c.dataset.f;renderOrders()});
+document.getElementById('ordwrap').onclick=e=>{
+  const li=e.target.closest('li[data-id]');if(!li)return;
+  const o=orders.find(x=>String(x.id)===li.dataset.id);if(o)openOrder(o)};
+
+document.getElementById('row-csv').onclick=()=>{const l=filtered();if(!l.length){toast('没有单据');return}
+  dl(new Blob([csvAll(l)],{type:'text/csv'}),'packing-'+stampNow()+'.csv');toast('已导出 '+l.length+' 单')};
+function doBackup(){
+  dl(new Blob([JSON.stringify({ver:1,t:Date.now(),rules,opts,orders})],{type:'application/json'}),
+     'packing-backup-'+stampNow()+'.json');
+  lsSet(K.bk,{t:Date.now(),count:orders.length});bkInfo();
+  toast('已导出备份（'+orders.length+' 单，不含视频和照片原图）',3200)}
+document.getElementById('row-backup').onclick=doBackup;
+document.getElementById('row-restore').onclick=()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json';
+  inp.onchange=async()=>{const f=inp.files[0];if(!f)return;
+    try{const d=JSON.parse(await f.text());
+      if(!d||!Array.isArray(d.orders))throw new Error('格式不对');
+      const merge=orders.length?confirm('当前有 '+orders.length+' 单。\n\n确定 = 合并\n取消 = 清空再恢复'):true;
+      if(!merge){await DB.clear('orders');await DB.clear('videos');await DB.clear('photos');orders=[]}
+      const have=new Set(orders.map(o=>o.id));let n=0;
+      for(const o of d.orders){if(have.has(o.id))continue;o.vid=false;o.vsize=0;await DB.put('orders',o);orders.push(o);n++}
+      if(Array.isArray(d.rules)){rules=d.rules;lsSet(K.rul,rules);renderRules()}
+      if(d.opts){opts=Object.assign(opts,d.opts);lsSet(K.opt,opts);syncOpts()}
+      orders.sort((a,b)=>b.t-a.t);renderOrders();updQuota();
+      toast('恢复 '+n+' 单（视频无法从备份还原）',3200)}
+    catch(e){toast('恢复失败：'+e.message,3500)}};
   inp.click()};
+document.getElementById('row-delvideo').onclick=async()=>{
+  const n=orders.filter(o=>o.vid).length;if(!n){toast('没有视频');return}
+  if(!confirm('删除全部 '+n+' 段视频？单据、序列号和照片保留。'))return;
+  await DB.clear('videos');
+  for(const o of orders)if(o.vid){o.vid=false;o.vsize=0;await DB.put('orders',o)}
+  renderOrders();updQuota();toast('视频已删除')};
+document.getElementById('row-clear').onclick=async()=>{
+  if(!orders.length)return;
+  if(!confirm('清空全部 '+orders.length+' 单（含视频和照片）？不可恢复。'))return;
+  await DB.clear('orders');await DB.clear('videos');await DB.clear('photos');
+  orders=[];renderOrders();updQuota();toast('已清空')};
 
-/* 字段规则 */
 document.getElementById('bnewrule').onclick=()=>{
   rules.push({id:Date.now(),col:'新字段',pattern:'',flags:'',tpl:'$1',on:true,primary:false,sample:''});
   lsSet(K.rul,rules);renderRules()};
@@ -767,58 +1175,32 @@ document.getElementById('rules').addEventListener('input',e=>{
   const i=+box.dataset.i,f=e.target.dataset.f;if(f==null)return;
   rules[i][f]=e.target.type==='checkbox'?e.target.checked:e.target.value;
   if(f==='on')box.classList.toggle('off',!rules[i].on);
-  lsSet(K.rul,rules);testRule(i);nameDemo()});
+  lsSet(K.rul,rules);testRule(i)});
 document.getElementById('rules').addEventListener('click',e=>{
   const b=e.target.closest('button[data-act]');if(!b)return;
   const i=+b.closest('.rule').dataset.i,a=b.dataset.act;
   if(a==='del'){if(!confirm('删除字段「'+(rules[i].col||'')+'」？'))return;rules.splice(i,1)}
-  else if(a==='star'){rules.forEach((r,j)=>r.primary=(j===i))}
+  else if(a==='star')rules.forEach((r,j)=>r.primary=(j===i));
   else if(a==='up'&&i>0)[rules[i-1],rules[i]]=[rules[i],rules[i-1]];
   else if(a==='down'&&i<rules.length-1)[rules[i+1],rules[i]]=[rules[i],rules[i+1]];
   lsSet(K.rul,rules);renderRules()});
-document.getElementById('brexport').onclick=()=>dl(new Blob([JSON.stringify(rules,null,2)],{type:'application/json'}),'qr-fields.json');
+document.getElementById('brexport').onclick=()=>dl(new Blob([JSON.stringify(rules,null,2)],{type:'application/json'}),'fields.json');
 document.getElementById('brimport').onclick=()=>{
   const inp=document.createElement('input');inp.type='file';inp.accept='.json';
   inp.onchange=async()=>{const f=inp.files[0];if(!f)return;
-    try{const v=JSON.parse(await f.text());
-      if(!Array.isArray(v))throw new Error('不是数组');
+    try{const v=JSON.parse(await f.text());if(!Array.isArray(v))throw new Error('不是数组');
       rules=v;lsSet(K.rul,rules);renderRules();toast('已导入 '+v.length+' 条')}
-    catch(e){toast('导入失败：'+e.message)}};
-  inp.click()};
+    catch(e){toast('导入失败：'+e.message)}};inp.click()};
 
-/* 看图 */
-let vurl=null,vrec=null;
-async function openViewer(rec){
-  const p=await DB.get('photos',rec.id);if(!p||!p.blob){toast('照片不存在');return}
-  if(vurl)URL.revokeObjectURL(vurl);
-  vurl=URL.createObjectURL(p.blob);vrec=rec;
-  document.getElementById('vimg').src=vurl;
-  document.getElementById('vname').textContent=fileName(rec,records.indexOf(rec)+1);
-  document.getElementById('viewer').classList.add('on');
-}
-document.getElementById('vclose').onclick=()=>{
-  document.getElementById('viewer').classList.remove('on');
-  if(vurl){URL.revokeObjectURL(vurl);vurl=null}};
-document.getElementById('vsave').onclick=async()=>{
-  if(!vrec)return;const p=await DB.get('photos',vrec.id);if(p&&p.blob)dl(p.blob,fileName(vrec,records.indexOf(vrec)+1))};
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)stop()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&cur)toast('页面切到后台，录像可能被系统暂停',3000)});
+window.addEventListener('beforeunload',e=>{if(cur){e.preventDefault();e.returnValue=''}});
 
-/* ============ 启动 ============ */
+/* ===================== 启动 ===================== */
 (async function(){
   try{await DB.open()}catch(e){toast('数据库打开失败：'+e.message,5000)}
-  try{
-    records=(await DB.all('records')).sort((a,b)=>b.t-a.t);
-    const old=lsGet('qrc.records',null);   // 从老版本 localStorage 迁移
-    if(old&&old.length&&!records.length){
-      for(const o of old){const r={id:o.id,t:o.t,v:o.v,raw:o.raw,fmt:o.fmt,matched:o.matched,
-        f:(o.v!=null&&primaryCol())?{[primaryCol()]:o.v}:{},ph:false,thumb:null,psize:0};
-        await DB.put('records',r);records.push(r)}
-      records.sort((a,b)=>b.t-a.t);
-      localStorage.removeItem('qrc.records');
-      toast('已把 '+records.length+' 条旧记录迁移到新存储',3000);
-    }
-  }catch(e){}
-  syncOpts();renderRules();renderRecs();renderCount();bkInfo();updQuota();updPersist();
+  try{orders=(await DB.all('orders')).sort((a,b)=>b.t-a.t)}catch(e){orders=[]}
+  syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();
+  if(!window.MediaRecorder)toast('此浏览器不支持录像，只能记录单据和照片',5000);
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>

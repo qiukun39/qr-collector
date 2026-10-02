@@ -1,7 +1,7 @@
 {
-  "name": "扫码提纯记录器",
-  "short_name": "扫码提纯",
-  "description": "扫商品二维码/条码，按正则提纯、本地记录、复制与导出 CSV",
+  "name": "打包出库留证",
+  "short_name": "打包留证",
+  "description": "扫快递面单自动录像，扫商品码提纯序列号并抓拍，按单号归档留证",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -75,6 +75,8 @@ ul.ords li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bot
 ul.ords li:last-child{border-bottom:0}
 ul.ords .bar{width:4px;align-self:stretch;border-radius:3px;background:var(--blue);flex:0 0 auto}
 ul.ords .bar.ret{background:var(--orange)}
+ul.ords .bar.scan{background:var(--teal)}
+.mini.t{background:#e2f7f5;color:#07746c}
 .thumb{position:relative;flex:0 0 auto;width:74px;height:56px;border-radius:9px;overflow:hidden;background:#e7e9ee}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb .none{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#b4bac4;font-size:17px}
@@ -145,11 +147,25 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 #bbig.rec .inner{width:30px;height:30px;border-radius:7px;background:var(--red)}
 @keyframes pulse{50%{opacity:.35}}
 .modeline{font-size:11.5px;color:rgba(255,255,255,.72);line-height:1.6}
+#scanin{display:none;margin-bottom:10px}
+#p-rec[data-mode="scan"] #scanin{display:block}
+#scanin input{width:100%;background:rgba(20,22,28,.78);border:1px solid rgba(255,255,255,.18);
+  border-radius:12px;padding:12px;min-height:48px;color:#fff;backdrop-filter:blur(6px)}
+#scanin input::placeholder{color:#8e99aa}
+/* 盘点模式没有录像，隐藏录制相关控件 */
+#p-rec[data-mode="scan"] #bpause{visibility:hidden}
+#p-rec[data-mode="scan"] #recitems{bottom:322px;max-height:26vh}
+#bigv{font-size:30px;font-weight:800;font-family:ui-monospace,Menlo,monospace;color:#fff;
+  text-shadow:0 2px 10px #000;word-break:break-all;text-align:center;margin-bottom:10px;display:none}
+#p-rec[data-mode="scan"] #bigv.on{display:block}
 #countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
   background:rgba(0,0,0,.42);color:#fff;font-size:108px;font-weight:800;text-shadow:0 4px 20px #000}
 #countdown.on{display:flex}
 #countdown small{font-size:16px;font-weight:600;letter-spacing:3px;margin-top:2px}
 .shotfx{animation:sh .4s ease}@keyframes sh{0%{filter:brightness(2.8)}100%{filter:none}}
+.dupfx{animation:dp .7s ease}@keyframes dp{0%,100%{box-shadow:none}
+  20%,60%{box-shadow:0 0 0 9999px rgba(245,34,45,.42) inset}}
+#bigv.dup{color:#ff9b9b}
 /* 手输单号 */
 #keyb{position:absolute;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:20px}
 #keyb.on{display:flex}
@@ -226,13 +242,14 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <button class="chip on" data-f="all">全部 (0)</button>
       <button class="chip" data-f="out">发货 (0)</button>
       <button class="chip" data-f="ret">退货 (0)</button>
+      <button class="chip" data-f="scan">盘点 (0)</button>
     </div>
     <div id="ordwrap"></div>
     <div class="empty" id="ordsempty">还没有单据<br><span style="font-size:12.5px">点下面「打包发货录像」开始</span></div>
     <div class="dock">
       <button id="go-out"><span class="ic b1">📦</span>打包发货录像</button>
       <button id="go-ret"><span class="ic b2">📥</span>拆包退货录像</button>
-      <button id="go-store"><span class="ic b3">☁️</span>备份和存储</button>
+      <button id="go-scan"><span class="ic b3">📋</span>扫码盘点</button>
     </div>
   </div>
 </section>
@@ -251,6 +268,9 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     </div>
     <div id="recitems"><h4 id="recitemsh">本单商品</h4><ul id="recitemslist"></ul></div>
     <div class="bottom">
+      <div id="bigv"></div>
+      <div id="scanin"><input type="text" class="mono" id="scaninput"
+        placeholder="扫码枪或手输，回车入库" autocapitalize="characters" autocorrect="off" spellcheck="false"></div>
       <div id="pill">点中间按钮开始待机</div>
       <div class="ctrls">
         <button class="mini-btn" id="bsnap" disabled><i>📸</i>抓拍</button>
@@ -261,8 +281,12 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     </div>
     <div id="countdown"><span id="cdnum">3</span><small id="cdtip">准备抓拍</small></div>
     <div id="keyb"><div class="box">
-      <h4>手动输入单号</h4>
+      <h4 id="keybtitle">手动输入单号</h4>
       <input type="text" class="mono" id="manualno" placeholder="单号" autocapitalize="characters" spellcheck="false">
+      <div class="rowi" id="keybphoto" style="display:none;padding:10px 0;border:0">
+        <span class="lab">本次每件自动拍照<small>盘点几百件时建议关掉</small></span>
+        <label class="sw"><input type="checkbox" id="o-taskphoto"><i></i></label>
+      </div>
       <div class="row" style="margin-top:12px">
         <button class="btn" id="bkeybcancel">取消</button>
         <button class="btn pri" id="bkeybok">开录</button>
@@ -346,6 +370,11 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="rowi"><span class="lab">照片长边</span>
         <select id="o-size"><option value="1024">1024px</option><option value="1600">1600px</option><option value="2048">2048px</option></select><span class="chev">›</span></div>
       <div class="rowi" id="row-fields"><span class="lab">提取字段规则<small id="fieldsum"></small></span><span class="chev">›</span></div>
+    </div>
+
+    <div class="grp">数据</div>
+    <div class="list">
+      <div class="rowi" id="row-store"><span class="lab">备份和存储<small>导出 CSV、备份、清理视频</small></span><span class="chev">›</span></div>
     </div>
 
     <div class="grp">提示音</div>
@@ -462,6 +491,7 @@ let opts=Object.assign({
   cmd:true,snapdelay:3,photo:true,mark:true,size:1600,beep:true,vib:true,keep:0
 },lsGet(K.opt,{}));
 let orders=[],filt='all',recType='out';
+const isScan=()=>recType==='scan';
 
 /* ===================== IndexedDB ===================== */
 const DB={db:null,
@@ -683,6 +713,8 @@ function wbMatch(t,fmt){
 function classify(text,fmt){
   const t=String(text).trim();fmt=fmtName(fmt);
   if(opts.cmd&&/^\[CMD:[A-Z]+\d*\]$/i.test(t))return 'cmd';
+  // 盘点模式没有快递单号，除控制卡外一律当商品（提不出字段就按原文记）
+  if(typeof recType!=='undefined'&&recType==='scan')return 'item';
   if(purify(text).matched)return 'item';     // 能提纯 = 商品，永远优先
   if(wbMatch(t,fmt))return 'waybill';
   return 'skip';
@@ -758,7 +790,10 @@ async function handle(text,fmt){
     else toast('已忽略新单号（设置里可改）',2200);
     return;
   }
-  if(!cur){toast('先扫面单开录，再扫商品',2200);sfx('bad');say('请先扫面单');return}
+  if(!cur){
+    if(isScan()){toast('先点中间按钮新建任务',2200);sfx('bad');say('请先新建任务')}
+    else{toast('先扫面单开录，再扫商品',2200);sfx('bad');say('请先扫面单')}
+    return}
   await addItem(text,fmt);
 }
 
@@ -829,33 +864,40 @@ function startLivePipe(){
   return mstream;
 }
 function stopLivePipe(){liveOn=false;if(mraf)cancelAnimationFrame(mraf);mraf=0;mcv=null;mcx=null;mstream=null}
-async function startOrder(no){
+async function startOrder(no,opt){
   if(cur)return;
-  if(!standby){toast('先点中间按钮开始待机');return}
+  const scan=isScan();
+  if(!standby&&!scan){toast('先点中间按钮开始待机');return}
   no=String(no).trim();
-  const old=orders.find(o=>o.no===no);
+  const old=scan?null:orders.find(o=>o.no===no);
   if(old){
     if(opts.dup==='block'){sfx('bad');toast('单号已录过（'+md(old.t)+'），已禁止重复录制',4000);
       say('重复单号，禁止录制',true);return}
     if(opts.dup==='warn'){sfx('bad');toast('注意：此单号之前录过（'+md(old.t)+'）',3500);say('注意，重复单号',true)}
   }
   const mime=pickMime();
-  cur={id:Date.now(),no,type:recType,t:Date.now(),items:[],mime,q:+opts.q,audio:!!opts.audio,lm:false};
+  cur={id:Date.now(),no,type:recType,t:Date.now(),items:[],mime:scan?'':mime,
+       q:+opts.q,audio:scan?false:!!opts.audio,lm:false,
+       photo:scan?!!(opt&&opt.photo):!!opts.photo};
   chunks=[];pausedTotal=0;pausedAt=0;recStart=Date.now();
-  let src=stream;
-  if(opts.livemark){try{src=startLivePipe();cur.lm=true}catch(e){src=stream;cur.lm=false}}
-  try{
-    rec=new MediaRecorder(src,mime?{mimeType:mime,videoBitsPerSecond:bitrate()}:{});
-    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
-    rec.start(1000);
-  }catch(e){rec=null;stopLivePipe();cur.lm=false;toast('录像启动失败：'+e.message,3500)}
+  if(!scan){
+    let src=stream;
+    if(opts.livemark){try{src=startLivePipe();cur.lm=true}catch(e){src=stream;cur.lm=false}}
+    try{
+      rec=new MediaRecorder(src,mime?{mimeType:mime,videoBitsPerSecond:bitrate()}:{});
+      rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+      rec.start(1000);
+    }catch(e){rec=null;stopLivePipe();cur.lm=false;toast('录像启动失败：'+e.message,3500)}
+  }
   if(opts.wake&&'wakeLock' in navigator){try{wake=await navigator.wakeLock.request('screen')}catch(e){}}
-  sfx('start');toast('开录：'+no,2200);
-  say(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像',true);
+  document.getElementById('bigv').classList.remove('on');
+  sfx('start');
+  toast(scan?('开始任务：'+no):('开录：'+no),2200);
+  say(scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像'),true);
   updUI();renderRecItems();
   clearInterval(durTimer);durTimer=setInterval(tickDur,500);
   clearTimeout(maxTimer);
-  const mx=(+opts.maxsec||0)*1000;
+  const mx=scan?0:(+opts.maxsec||0)*1000;
   if(mx>0)maxTimer=setTimeout(()=>{if(cur){toast('已达最大录像时长，自动保存',3000);say('已达最大时长，自动保存');stopOrder()}},mx);
 }
 function elapsed(){return Date.now()-recStart-pausedTotal-(pausedAt?Date.now()-pausedAt:0)}
@@ -881,11 +923,13 @@ async function stopOrder(silent){
   else{o.vid=false;o.vsize=0}
   if(!o.thumb&&o.items.length)o.thumb=o.items[0].thumb||null;
   await DB.put('orders',o);orders.unshift(o);
+  document.getElementById('bigv').classList.remove('on');
   updUI();renderRecItems();renderOrders();updQuota();
   if(!silent){sfx('stop');
     const n=o.items.filter(i=>!i.snap).length;
-    toast('已保存：'+o.no+'（'+n+' 件，'+mmss(o.dur)+'）',2600);
-    say('录像已保存'+(n?('，'+n+' 件商品'):''),true);}
+    const scan=(o.type||'out')==='scan';
+    toast(scan?('任务已保存：'+o.no+'（'+n+' 件）'):('已保存：'+o.no+'（'+n+' 件，'+mmss(o.dur)+'）'),2600);
+    say(scan?('盘点结束，共 '+n+' 件'):('录像已保存'+(n?('，'+n+' 件商品'):'')),true);}
   pruneOld();
 }
 async function discardOrder(){
@@ -901,6 +945,12 @@ async function discardOrder(){
 /* ===================== 商品 / 抓拍 ===================== */
 function flashFx(){const v=document.getElementById('cam');
   v.classList.remove('shotfx');void v.offsetWidth;v.classList.add('shotfx')}
+function dupFx(){const w=document.getElementById('p-rec');
+  w.classList.remove('dupfx');void w.offsetWidth;w.classList.add('dupfx')}
+function showBig(text,dup){
+  const e=document.getElementById('bigv');
+  e.textContent=text;e.classList.add('on');e.classList.toggle('dup',!!dup);
+}
 async function shoot(lines){
   const w=video.videoWidth,h=video.videoHeight;
   if(!w||!h)return null;
@@ -918,18 +968,22 @@ async function shoot(lines){
 async function addItem(raw,fmt){
   const p=purify(raw);
   if(!p.v){sfx('bad');toast('提纯结果为空');return}
-  if(cur.items.some(i=>i.v===p.v)){sfx('dup');toast('本单已有：'+p.v,1600);say('重复扫描',true);return}
+  if(cur.items.some(i=>i.v===p.v)){
+    sfx('dup');dupFx();showBig(p.v+'  已扫过',true);
+    if(navigator.vibrate)navigator.vibrate([90,60,90]);
+    toast('重复：'+p.v+'（本单已有）',2200);say('重复扫描',true);return}
   const idx=cur.items.length+1;
   const it={v:p.v,f:p.f,raw:String(raw),matched:p.matched,t:Date.now(),fmt:fmt||'',ph:null,thumb:null};
-  if(opts.photo){
+  if(cur.photo){
     const s=await shoot([ts(it.t),cur.no+'   '+p.v]);
     if(s&&s.blob){const pid=cur.id+'#'+idx;await DB.put('photos',{id:pid,blob:s.blob});
       it.ph=pid;it.thumb=s.thumb;it.psize=s.size}
   }else flashFx();
   cur.items.push(it);
   if(!cur.thumb)cur.thumb=it.thumb;
-  renderRecItems();updPill();sfx('item');
   const n=cur.items.filter(i=>!i.snap).length;
+  showBig(p.v+'   #'+n,false);
+  renderRecItems();updPill();updWM();sfx('item');
   say(opts.ttssn?('第 '+n+' 件，'+spellNo(p.v)):('第 '+n+' 件'));
   if(!p.matched)toast('无字段匹配，按原文记录：'+p.v,2400);
 }
@@ -962,22 +1016,27 @@ async function doSnap(){
 /* ===================== 录像页 UI ===================== */
 let wmTimer=null;
 function updWM(){
-  document.getElementById('wmTime').textContent=ts(Date.now());
+  const scan=isScan();
+  document.getElementById('wmTime').textContent=scan?(cur?esc(cur.no):'扫码盘点'):ts(Date.now());
   const sub=document.getElementById('wmSub');
   if(cur){
     const n=cur.items.filter(i=>!i.snap).length;
-    sub.innerHTML=esc(cur.no)+(n?' <span class="cnt">· '+n+' 件</span>':'');
-  }else sub.textContent=standby?'正在识别快递单号…':'摄像头未启动';
+    sub.innerHTML=scan?('<span class="cnt">已扫 '+n+' 件</span>'+(cur.photo?' · 拍照开':''))
+                      :(esc(cur.no)+(n?' <span class="cnt">· '+n+' 件</span>':''));
+  }else sub.textContent=scan?(standby?'点中间按钮新建任务':'摄像头未启动')
+                            :(standby?'正在识别快递单号…':'摄像头未启动');
 }
 function updPill(){
-  const pill=document.getElementById('pill');
+  const pill=document.getElementById('pill'),scan=isScan();
   if(cur){
     const n=cur.items.filter(i=>!i.snap).length;
-    pill.classList.add('rec');
-    pill.textContent='● 录制中 '+mmss(elapsed())+(rec&&rec.state==='paused'?'（已暂停）':'')+' · '+n+' 件';
+    if(scan){pill.classList.remove('rec');pill.textContent='盘点中 '+mmss(elapsed())+' · 已扫 '+n+' 件'}
+    else{pill.classList.add('rec');
+      pill.textContent='● 录制中 '+mmss(elapsed())+(rec&&rec.state==='paused'?'（已暂停）':'')+' · '+n+' 件'}
   }else{
     pill.classList.remove('rec');
-    pill.textContent=standby?'扫码器已就绪 · 识别单号后自动录像':'点中间按钮开始待机';
+    pill.textContent=scan?(standby?'扫码器已就绪 · 点中间按钮新建任务':'点中间按钮开始')
+                         :(standby?'扫码器已就绪 · 识别单号后自动录像':'点中间按钮开始待机');
   }
 }
 function updUI(){
@@ -988,11 +1047,16 @@ function updUI(){
   document.getElementById('bpause').disabled=!cur;
   document.getElementById('bpause').querySelector('i').textContent=(rec&&rec.state==='paused')?'▶':'⏸';
   document.getElementById('bpause').childNodes[1].nodeValue=(rec&&rec.state==='paused')?'继续':'暂停';
+  const scan=isScan();
+  document.getElementById('p-rec').dataset.mode=scan?'scan':'rec';
   document.getElementById('modeline').innerHTML=
-    (standby?(engine==='native'?'原生解码':'ZXing 解码'):'未启动')+' · '+
-    (opts.sw==='auto'?'识别新单号开启新录像':'忽略新单号')+'<br>'+
-    '扫码模式 · '+({cn:'中国大陆快递面单',i1d:'国际一维码',i2d:'国际二维码',custom:'自定义规则',any:'任意码'}[opts.wbrule])+
-    (opts.livemark?' · 水印开':'')+(opts.tts?' · 语音开':'');
+    (standby?(engine==='native'?'原生解码':'ZXing 解码'):'未启动')+
+    (scan?' · 盘点模式，不录像'
+         :(' · '+(opts.sw==='auto'?'识别新单号开启新录像':'忽略新单号')))+'<br>'+
+    (scan?('所有扫到的码都按商品记录'+(cur&&cur.photo?' · 本次拍照开':''))
+         :('扫码模式 · '+({cn:'中国大陆快递面单',i1d:'国际一维码',i2d:'国际二维码',custom:'自定义规则',any:'任意码'}[opts.wbrule])
+           +(opts.livemark?' · 水印开':'')))+
+    (opts.tts?' · 语音开':'');
   updWM();updPill();
   const t=document.getElementById('st-engine-t');
   if(t){t.textContent=standby?('待机中'+(cur?' · 录制中':'')):'摄像头未启动';
@@ -1020,7 +1084,7 @@ function renderOrders(){
   const all=orders.filter(o=>matchQ(o,q));
   document.querySelectorAll('.chip').forEach(c=>{
     const f=c.dataset.f,n=f==='all'?all.length:all.filter(o=>(o.type||'out')===f).length;
-    c.textContent=(f==='all'?'全部':f==='out'?'发货':'退货')+' ('+n+')';
+    c.textContent=({all:'全部',out:'发货',ret:'退货',scan:'盘点'}[f])+' ('+n+')';
     c.classList.toggle('on',filt===f)});
   const list=filtered();
   document.getElementById('ordsempty').style.display=list.length?'none':'';
@@ -1033,11 +1097,13 @@ function renderOrders(){
      <ul class="ords">${g.items.map(o=>{
        const n=o.items.filter(i=>!i.snap).length,ph=o.items.filter(i=>i.ph).length;
        return `<li data-id="${o.id}">
-         <span class="bar ${(o.type||'out')==='ret'?'ret':''}"></span>
+         <span class="bar ${(o.type||'out')==='ret'?'ret':(o.type==='scan'?'scan':'')}"></span>
          <span class="thumb">${o.thumb?`<img src="${o.thumb}">`:'<span class="none">📦</span>'}
-           ${o.dur?`<span class="dur">${mmss(o.dur)}</span>`:''}</span>
+           ${o.dur&&o.type!=='scan'?`<span class="dur">${mmss(o.dur)}</span>`:''}
+           ${o.type==='scan'?`<span class="dur">${o.items.filter(i=>!i.snap).length} 件</span>`:''}</span>
          <span class="mid"><b>${esc(o.no)}</b><div class="t">${md(o.t)}</div>
-           ${o.vid?'<span class="mini b">📹 '+kb(o.vsize)+'</span>':'<span class="mini r">无视频</span>'}
+           ${o.type==='scan'?'<span class="mini t">📋 盘点</span>'
+             :(o.vid?'<span class="mini b">📹 '+kb(o.vsize)+'</span>':'<span class="mini r">无视频</span>')}
            ${o.lm?'<span class="mini g">水印</span>':''}
            ${n?'<span class="mini g">'+n+' 件</span>':''}
            ${ph?'<span class="mini o">'+ph+' 图</span>':''}</span>
@@ -1108,16 +1174,17 @@ async function openOrder(o){
   if(vurl){URL.revokeObjectURL(vurl);vurl=null}
   const items=o.items.filter(i=>!i.snap),snaps=o.items.filter(i=>i.snap);
   body.innerHTML=`
-    ${o.vid?`<div class="card" style="margin-top:12px;padding:10px"><video id="ovid" controls playsinline style="width:100%"></video></div>`:''}
+    ${o.vid&&o.type!=='scan'?`<div class="card" style="margin-top:12px;padding:10px"><video id="ovid" controls playsinline style="width:100%"></video></div>`:''}
     <div class="card">
-      <div class="hint">${(o.type||'out')==='ret'?'拆包退货':'打包发货'}　${ts(o.t)}　时长 ${mmss(o.dur||0)}　${o.q||''}p${o.audio?' · 有声':' · 静音'}${o.lm?' · 已带水印':''}<br>
-        ${items.length} 件商品 · ${o.items.filter(i=>i.ph).length} 张照片 · 视频 ${o.vid?kb(o.vsize):'无'}</div>
+      <div class="hint">${({out:'打包发货',ret:'拆包退货',scan:'扫码盘点'}[o.type||'out'])}　${ts(o.t)}${
+        o.type==='scan'?'':('　时长 '+mmss(o.dur||0)+'　'+(o.q||'')+'p'+(o.audio?' · 有声':' · 静音')+(o.lm?' · 已带水印':''))}<br>
+        ${items.length} 件商品 · ${o.items.filter(i=>i.ph).length} 张照片${o.type==='scan'?'':(' · 视频 '+(o.vid?kb(o.vsize):'无'))}</div>
       <div class="row" style="margin-top:11px">
         <button class="btn sm" id="ocopy">复制序列号</button>
-        <button class="btn sm" id="ovideo" ${o.vid?'':'disabled'}>导出视频</button>
+        ${o.type==='scan'?'':`<button class="btn sm" id="ovideo" ${o.vid?'':'disabled'}>导出视频</button>`}
       </div>
       <div class="row" style="margin-top:8px">
-        <button class="btn sm pri" id="oburn" ${o.vid?'':'disabled'}>补烧水印并导出</button>
+        ${o.type==='scan'?'':`<button class="btn sm pri" id="oburn" ${o.vid?'':'disabled'}>补烧水印并导出</button>`}
         <button class="btn sm bad" id="odel">删除本单</button>
       </div>
       <div class="pbar" id="burnbar" style="display:none"><i></i></div>
@@ -1135,9 +1202,9 @@ async function openOrder(o){
   if(o.vid){const v=await DB.get('videos',o.id);
     if(v&&v.blob){vurl=URL.createObjectURL(v.blob);const e=document.getElementById('ovid');if(e)e.src=vurl}}
   document.getElementById('ocopy').onclick=()=>copy(items.map(i=>i.v).join('\n'));
-  document.getElementById('ovideo').onclick=async()=>{const v=await DB.get('videos',o.id);
+  const ov=document.getElementById('ovideo');if(ov)ov.onclick=async()=>{const v=await DB.get('videos',o.id);
     if(v&&v.blob)dl(v.blob,sanitize(ymd(o.t)+'-'+hmsf(o.t)+'_'+o.no)+extOf(v.blob.type))};
-  document.getElementById('oburn').onclick=()=>burn(o);
+  const ob=document.getElementById('oburn');if(ob)ob.onclick=()=>burn(o);
   document.getElementById('odel').onclick=async()=>{
     if(!confirm('删除单据 '+o.no+'？视频和照片一并删除，不可恢复。'))return;
     await DB.del('orders',o.id);if(o.vid)await DB.del('videos',o.id);
@@ -1195,7 +1262,7 @@ function csvAll(list){
   const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
   const cs=cols();list.forEach(o=>o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)})));
   const rows=[['单号','类型','开始时间','时长','序号','主值',...cs,'原始内容','有照片','码制']];
-  list.forEach(o=>{const tp=(o.type||'out')==='ret'?'退货':'发货';
+  list.forEach(o=>{const tp={out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'];
     if(!o.items.length)rows.push([o.no,tp,ts(o.t),mmss(o.dur||0),'','',...cs.map(()=>''),'','','']);
     o.items.forEach((i,k)=>rows.push([o.no,tp,ts(o.t),mmss(o.dur||0),k+1,i.v,
       ...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'是':'',i.fmt||'']))});
@@ -1242,7 +1309,8 @@ function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.togg
   window.scrollTo(0,0);const m=document.querySelector('.page.on');if(m)m.scrollTop=0}
 document.getElementById('go-out').onclick=()=>{recType='out';show('rec');updUI()};
 document.getElementById('go-ret').onclick=()=>{recType='ret';show('rec');updUI()};
-document.getElementById('go-store').onclick=()=>{show('store');updQuota();bkInfo()};
+document.getElementById('go-scan').onclick=()=>{recType='scan';show('rec');updUI();
+  setTimeout(()=>{if(!standby)startStandby()},60)};
 document.getElementById('goset').onclick=()=>show('set');
 document.getElementById('gofields').onclick=()=>{renderRules();show('fields')};
 document.getElementById('bclosecam').onclick=async()=>{
@@ -1257,6 +1325,7 @@ document.getElementById('bcards2').onclick=async()=>{show('cards');await renderC
 document.getElementById('row-fields').onclick=()=>{renderRules();show('fields')};
 document.getElementById('bprint').onclick=()=>window.print();
 document.getElementById('st-store').onclick=()=>{show('store');updQuota();bkInfo()};
+document.getElementById('row-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('st-engine').onclick=()=>{show('rec');updUI()};
 document.getElementById('row-ttstest').onclick=()=>{
   if(!opts.tts){toast('先打开语音播报');return}
@@ -1280,8 +1349,24 @@ document.getElementById('row-ttsdiag').onclick=async()=>{
   toast(last&&/^start|^end/.test(last.ev)?'语音正常':'语音没发出来，详情见上方',3200);
 };
 
+function openTaskDialog(){
+  const k=document.getElementById('keyb'),scan=isScan();
+  document.getElementById('keybtitle').textContent=scan?'新建盘点任务':'手动输入单号';
+  const inp=document.getElementById('manualno');
+  inp.placeholder=scan?'任务名，如「德商到货 1002」':'单号';
+  if(scan&&!inp.value)inp.value='盘点 '+md(Date.now());
+  document.getElementById('keybphoto').style.display=scan?'flex':'none';
+  document.getElementById('o-taskphoto').checked=!!opts.photo;
+  document.getElementById('bkeybok').textContent=scan?'开始盘点':'开录';
+  k.classList.add('on');
+  setTimeout(()=>{inp.focus();if(scan)inp.select()},80);
+}
 document.getElementById('bbig').onclick=async()=>{
   if(cur){await stopOrder();return}
+  if(isScan()){
+    if(!standby)await startStandby();
+    openTaskDialog();return;
+  }
   if(standby){await quitStandby();return}
   await startStandby();
 };
@@ -1294,16 +1379,27 @@ document.getElementById('bswitch').onclick=async()=>{if(cur){toast('录制中不
   facing=facing==='environment'?'user':'environment';await quitStandby();await startStandby()};
 document.getElementById('bsnap').onclick=()=>snapWithDelay(+opts.snapdelay||0);
 document.getElementById('bpause').onclick=()=>pauseRec(rec&&rec.state==='recording');
-document.getElementById('bkeyb').onclick=()=>{document.getElementById('keyb').classList.add('on');
-  setTimeout(()=>document.getElementById('manualno').focus(),80)};
+document.getElementById('bkeyb').onclick=openTaskDialog;
 document.getElementById('bkeybcancel').onclick=()=>document.getElementById('keyb').classList.remove('on');
 document.getElementById('bkeybok').onclick=async()=>{
   const el=document.getElementById('manualno'),no=el.value.trim();
-  if(!no){toast('先输入单号');return}
+  if(!no){toast(isScan()?'先输入任务名':'先输入单号');return}
+  const photo=document.getElementById('o-taskphoto').checked;
   document.getElementById('keyb').classList.remove('on');
   if(!standby)await startStandby();
   if(cur)await stopOrder();
-  await startOrder(no);el.value=''};
+  await startOrder(no,{photo});el.value=''};
+document.getElementById('manualno').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();document.getElementById('bkeybok').click()}});
+// 常驻输入框：扫码枪当键盘打进来，回车入库
+document.getElementById('scaninput').addEventListener('keydown',async e=>{
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  const el=e.target,v=el.value.trim();el.value='';
+  if(!v)return;
+  if(!cur){toast('先点中间按钮新建任务');sfx('bad');return}
+  await addItem(v,'keyboard');
+});
 
 ['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd']
   .forEach(k=>{const e=document.getElementById('o-'+k);

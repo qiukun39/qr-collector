@@ -473,8 +473,20 @@ const kb=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':n<1073741824?(n/10
 const sanitize=s=>String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g,'_').replace(/\s+/g,'_').slice(0,100);
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),10000)}
-function loadJS(src,glob){return new Promise((res,rej)=>{if(window[glob])return res();
-  const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error('加载失败'));document.head.appendChild(s)})}
+function loadOne(src){return new Promise((res,rej)=>{
+  const s=document.createElement('script');s.src=src;
+  s.onload=()=>res();s.onerror=()=>rej(new Error('加载失败：'+src));
+  document.head.appendChild(s)})}
+// 本地优先（同源、可离线、国内不受 CDN 影响），失败再退回 CDN
+async function loadJS(srcs,glob){
+  if(window[glob])return;
+  const list=Array.isArray(srcs)?srcs:[srcs];
+  let last;
+  for(const u of list){
+    try{await loadOne(u);if(window[glob])return}catch(e){last=e}
+  }
+  throw last||new Error('脚本加载失败');
+}
 async function copy(s){if(!s)return;try{await navigator.clipboard.writeText(s);toast('已复制')}catch(e){
   const t=document.createElement('textarea');t.value=s;t.style.position='fixed';t.style.opacity='0';
   document.body.appendChild(t);t.select();try{document.execCommand('copy');toast('已复制')}catch(_){}t.remove()}}
@@ -529,7 +541,8 @@ const seen=new Map();
 async function ensureEngine(){
   if('BarcodeDetector' in window){
     try{detector=new BarcodeDetector({formats:await BarcodeDetector.getSupportedFormats()});return 'native'}catch(e){}}
-  await loadJS('https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js','ZXing');
+  await loadJS(['vendor/zxing.min.js',
+                'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'],'ZXing');
   zxing=zxing||new ZXing.MultiFormatReader();zxing.setHints(new Map());
   return 'zxing';
 }
@@ -627,7 +640,7 @@ async function handle(text,fmt){
     else if(c.name==='SNAP'){if(cur)snapWithDelay(c.arg==null?(+opts.snapdelay||0):c.arg);else toast('当前没有在录')}
     else if(c.name==='PAUSE')pauseRec(true);
     else if(c.name==='RESUME')pauseRec(false);
-    else if(c.name==='DISCARD'){if(cur){toast('控制卡：丢弃本段');await discardOrder()}}
+    else if(c.name==='DROP'||c.name==='DISCARD'){if(cur){toast('控制卡：丢弃本段');await discardOrder()}}
     else toast('未知指令：'+c.name);
     return;
   }
@@ -1059,19 +1072,30 @@ const CMDS=[
   {code:'[CMD:SNAP5]',  t:'抓拍 · 5 秒',   d:'倒计时 5 秒后拍'},
   {code:'[CMD:PAUSE]',  t:'暂停',         d:'中途离开时用'},
   {code:'[CMD:RESUME]', t:'继续',         d:'接着录同一段'},
-  {code:'[CMD:DISCARD]',t:'丢弃本段',     d:'扫错单了，丢掉重来'}
+  {code:'[CMD:DROP]',   t:'丢弃本段',     d:'扫错单了，丢掉重来'}
 ];
+function drawQR(cv,text,px){
+  const q=qrcode(0,'H');q.addData(text);q.make();
+  const n=q.getModuleCount(),quiet=4,size=px||480;   // QR 规范要求静默区 4 格，少了会扫不出
+  const cell=Math.floor(size/(n+quiet*2)),w=cell*(n+quiet*2);
+  cv.width=w;cv.height=w;
+  const x=cv.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,w,w);
+  x.fillStyle='#000';
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++)
+    if(q.isDark(r,c))x.fillRect((c+quiet)*cell,(r+quiet)*cell,cell,cell);
+}
 async function renderCards(){
   const box=document.getElementById('cardsbox');
   box.innerHTML=CMDS.map(c=>`<div class="ccard"><canvas data-code="${esc(c.code)}"></canvas>
     <div class="t">${esc(c.t)}</div><div class="s">${esc(c.code)}</div>
     <div class="s" style="color:#888">${esc(c.d)}</div></div>`).join('');
   try{
-    await loadJS('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js','QRCode');
-    for(const cv of box.querySelectorAll('canvas'))
-      await QRCode.toCanvas(cv,cv.dataset.code,{width:420,margin:1,errorCorrectionLevel:'H'});
+    await loadJS(['vendor/qrcode.js',
+                  'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'],'qrcode');
+    for(const cv of box.querySelectorAll('canvas'))drawQR(cv,cv.dataset.code);
   }catch(e){box.insertAdjacentHTML('afterbegin',
-    '<div class="hint" style="grid-column:1/-1;color:var(--red)">二维码生成失败（首次需联网一次）：'+esc(e.message)+'</div>')}
+    '<div class="hint" style="grid-column:1/-1;color:var(--red)">二维码生成失败：'+esc(e.message)+'</div>')}
 }
 
 /* ===================== 路由 / 事件 ===================== */

@@ -34,7 +34,7 @@
 | `[CMD:SNAP]` | 抓拍，用设置里的倒计时 |
 | `[CMD:SNAP0]` `[CMD:SNAP3]` `[CMD:SNAP5]` | 抓拍，固定 0 / 3 / 5 秒倒计时 |
 | `[CMD:PAUSE]` `[CMD:RESUME]` | 暂停 / 继续 |
-| `[CMD:DISCARD]` | 丢弃本段重录 |
+| `[CMD:DROP]` | 丢弃本段重录（旧卡 `[CMD:DISCARD]` 仍兼容）|
 
 抓拍倒计时期间屏幕显示大字倒数、每秒「嘀」一声，到点「咔嚓」+ 白闪，
 给打包员时间把东西摆到镜头下。
@@ -112,4 +112,14 @@ python3 -m http.server 8000 --bind 127.0.0.1
 - `sw.js` — 离线缓存。**改版记得 bump `VER`**，否则 Service Worker 会继续吃旧缓存
 - `manifest.webmanifest` / `icon.svg` — PWA 安装
 
-外部依赖只有三个按需加载的 CDN 脚本：ZXing（原生解码不可用时）、QRCode（生成控制卡）、JSZip（暂未使用）。
+## 依赖
+
+两个库都**放在仓库 `vendor/` 里自己托管**，同源加载，不依赖 CDN（国内 jsDelivr 不稳），
+Service Worker 会预缓存，离线也能用；本地加载失败才回退到 jsDelivr。
+
+| 文件 | 用途 | 何时加载 |
+|---|---|---|
+| `vendor/zxing.min.js` | 条码解码兜底 | 浏览器没有原生 `BarcodeDetector` 时 |
+| `vendor/qrcode.js` | 生成控制卡二维码 | 打开控制卡页时 |
+
+控制卡二维码留 **4 格静默区**（QR 规范要求），实测 160–400px 全尺寸段都能稳定解码。

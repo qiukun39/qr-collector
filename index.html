@@ -328,6 +328,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="rowi"><span class="lab">语速</span>
         <select id="o-ttsrate"><option value="0.8">慢</option><option value="1">正常</option><option value="1.2">快</option><option value="1.5">很快</option></select><span class="chev">›</span></div>
       <div class="rowi" id="row-ttstest"><span class="lab">试听</span><span class="chev">›</span></div>
+      <div class="rowi" id="row-ttsdiag"><span class="lab">语音自检<small id="ttsdiag">点这里跑一次检测</small></span><span class="chev">›</span></div>
     </div>
 
     <div class="grp">控制卡</div>
@@ -560,18 +561,46 @@ function initTTS(){
   load();
   try{speechSynthesis.onvoiceschanged=load}catch(e){}
 }
+let ttsLog=[];
+function ttsNote(o){ttsLog.unshift(Object.assign({t:Date.now()},o));if(ttsLog.length>12)ttsLog.pop()}
+function micOpen(){try{return !!(stream&&stream.getAudioTracks().some(t=>t.readyState==='live'))}catch(e){return false}}
+function speakNow(text,tries){
+  const u=new SpeechSynthesisUtterance(String(text));
+  u.lang='zh-CN';u.rate=+opts.ttsrate||1;u.pitch=1;u.volume=1;
+  const v=voices.find(v=>/^zh/i.test(v.lang||''));
+  if(v)u.voice=v;
+  let started=false;
+  const t0=performance.now();
+  u.onstart=()=>{started=true;ttsNote({text,ev:'start',ms:Math.round(performance.now()-t0),mic:micOpen()})};
+  u.onend=()=>ttsNote({text,ev:'end',ms:Math.round(performance.now()-t0)});
+  u.onerror=e=>ttsNote({text,ev:'error:'+(e&&e.error||'?'),ms:Math.round(performance.now()-t0),mic:micOpen()});
+  try{speechSynthesis.resume()}catch(e){}        // Chrome 有时会卡在 paused
+  try{speechSynthesis.speak(u)}catch(e){ttsNote({text,ev:'throw:'+e.message});return}
+  // 看门狗：600ms 内没 onstart 就当被吞了，重试一次
+  setTimeout(()=>{
+    if(started||!(tries>0))return;
+    ttsNote({text,ev:'未发声，重试',mic:micOpen()});
+    try{speechSynthesis.cancel()}catch(e){}
+    setTimeout(()=>speakNow(text,tries-1),140);
+  },600);
+}
 function say(text,interrupt){
   if(!opts.tts||!text)return;
-  if(!('speechSynthesis' in window))return;
+  if(!('speechSynthesis' in window)){ttsNote({text,ev:'浏览器不支持'});return}
   try{
-    if(interrupt)speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(String(text));
-    u.lang='zh-CN';u.rate=+opts.ttsrate||1;u.pitch=1;u.volume=1;
-    const v=voices.find(v=>/^zh/i.test(v.lang||''));
-    if(v)u.voice=v;
-    speechSynthesis.speak(u);
-  }catch(e){}
+    // Chrome 坑：cancel() 后立刻 speak() 会把这条吞掉，必须隔一拍
+    if(interrupt&&(speechSynthesis.speaking||speechSynthesis.pending)){
+      speechSynthesis.cancel();
+      setTimeout(()=>speakNow(text,1),140);
+      return;
+    }
+    speakNow(text,1);
+  }catch(e){ttsNote({text,ev:'throw:'+e.message})}
 }
+// Chrome 长时间不说话会把引擎挂起，定期 resume 保活
+setInterval(()=>{try{
+  if(opts.tts&&'speechSynthesis' in window&&!speechSynthesis.speaking)speechSynthesis.resume()
+}catch(e){}},8000);
 // 单号逐字读更容易听清："SF5140" → "S F 5 1 4 0"
 function spellNo(no){return String(no).split('').join(' ')}
 
@@ -1232,6 +1261,24 @@ document.getElementById('st-engine').onclick=()=>{show('rec');updUI()};
 document.getElementById('row-ttstest').onclick=()=>{
   if(!opts.tts){toast('先打开语音播报');return}
   say('开始录像，单号 S F 5 1 4 0，第 1 件，录像已保存',true);toast('已试听')};
+document.getElementById('row-ttsdiag').onclick=async()=>{
+  const el=document.getElementById('ttsdiag');
+  const sup='speechSynthesis' in window;
+  const zh=voices.filter(v=>/^zh/i.test(v.lang||''));
+  el.textContent='检测中…';
+  ttsLog=[];
+  say('语音自检',true);
+  await new Promise(r=>setTimeout(r,1600));
+  const last=ttsLog.find(x=>/start|error|throw|不支持|未发声/.test(x.ev));
+  const lines=[
+    '支持 speechSynthesis：'+(sup?'是':'否'),
+    '中文语音：'+(zh.length?zh.map(v=>v.name).join(' / '):'无（安卓需装「Google 文字转语音」）'),
+    '麦克风当前：'+(micOpen()?'已开启（录音中）':'未开启'),
+    '本次结果：'+(last?(last.ev+(last.ms!=null?(' @'+last.ms+'ms'):'')):'没有任何回调（被静默吞掉）')
+  ];
+  el.innerHTML=lines.join('<br>');
+  toast(last&&/^start|^end/.test(last.ev)?'语音正常':'语音没发出来，详情见上方',3200);
+};
 
 document.getElementById('bbig').onclick=async()=>{
   if(cur){await stopOrder();return}

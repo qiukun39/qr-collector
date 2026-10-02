@@ -110,6 +110,37 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
   display:flex;align-items:center;justify-content:center;font-size:40px}
 #camoff .t1{font-size:17px;font-weight:600;color:#aeb8c7}
 #camoff .t2{font-size:13px;line-height:1.8}
+/* 顶部状态胶囊 */
+.tchips{position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top));display:flex;
+  flex-direction:column;align-items:flex-end;gap:9px;max-width:66%}
+.tchip{display:inline-flex;align-items:center;gap:6px;background:rgba(30,32,38,.72);backdrop-filter:blur(6px);
+  color:#fff;font-size:13.5px;font-weight:600;padding:8px 15px;border-radius:999px;white-space:nowrap;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tchip.t2{background:rgba(43,127,255,.82)}
+.tchip.ret{background:rgba(255,140,26,.85)}
+.tchip.scan{background:rgba(18,178,166,.85)}
+.tchip.rec{background:rgba(245,34,45,.85)}
+.tchip.mono{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+/* 取景框 */
+#frame{position:absolute;left:12%;top:32%;width:76%;height:24%;display:none;pointer-events:none}
+#frame.on{display:block}
+#frame .box{position:absolute;inset:0;border:2px solid rgba(255,255,255,.55);border-radius:18px}
+#frame .c{position:absolute;width:30px;height:30px;border:4px solid #fff;border-radius:3px}
+#frame .c1{left:-2px;top:-2px;border-right:0;border-bottom:0;border-top-left-radius:16px}
+#frame .c2{right:-2px;top:-2px;border-left:0;border-bottom:0;border-top-right-radius:16px}
+#frame .c3{left:-2px;bottom:-2px;border-right:0;border-top:0;border-bottom-left-radius:16px}
+#frame .c4{right:-2px;bottom:-2px;border-left:0;border-top:0;border-bottom-right-radius:16px}
+#frame.roi .box{border-color:var(--green)}
+#frame.roi .c{border-color:var(--green)}
+#frame .scanline{position:absolute;left:8px;right:8px;height:2px;background:linear-gradient(90deg,
+  transparent,rgba(74,222,128,.95),transparent);border-radius:2px;animation:sweep 2.4s ease-in-out infinite}
+@keyframes sweep{0%,100%{top:8%}50%{top:90%}}
+#frametip{position:absolute;left:0;right:0;top:calc(32% + 24% + 20px);text-align:center;
+  color:#fff;text-shadow:0 2px 8px #000;pointer-events:none;display:none}
+#frametip.on{display:block}
+#frametip .a{font-size:24px;font-weight:700;letter-spacing:1px}
+#frametip .b{font-size:13.5px;color:rgba(255,255,255,.78);margin-top:5px}
+#p-rec:not([data-standby="1"]) #frame,#p-rec:not([data-standby="1"]) #frametip{display:none}
 /* 摄像头没开时：左上水印、底部状态条都在重复中间那句话，藏起来 */
 #p-rec:not([data-standby="1"]) #wm,
 #p-rec:not([data-standby="1"]) #pill{display:none}
@@ -118,11 +149,11 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 .ovl{position:absolute;inset:0;pointer-events:none}
 .ovl>*{pointer-events:auto}
 /* 左上水印预览（所见即所烧） */
-#wm{position:absolute;left:14px;top:calc(12px + env(safe-area-inset-top));max-width:62%;
+#wm{position:absolute;left:14px;top:calc(72px + env(safe-area-inset-top));max-width:58%;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#fff;
   text-shadow:0 0 4px #000,0 0 4px #000,0 1px 2px #000;pointer-events:none}
-#wmTime{font-size:20px;font-weight:700;letter-spacing:.5px}
-#wmSub{font-size:14px;font-weight:600;margin-top:2px;word-break:break-all;line-height:1.35}
+#wmTime{font-size:17px;font-weight:700;letter-spacing:.3px}
+#wmSub{font-size:13px;font-weight:600;margin-top:2px;word-break:break-all;line-height:1.35}
 #wmSub .cnt{color:#9ef0c0}
 /* 右侧竖排按钮 */
 .side{position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:11px}
@@ -287,13 +318,25 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
   </div>
   <div class="ovl">
     <div id="wm"><div id="wmTime">--:--:--</div><div id="wmSub">摄像头未启动</div></div>
-    <div class="side">
+    <div class="side" style="left:12px;right:auto;flex-direction:row">
       <button id="bclosecam" title="返回">✕</button>
-      <button id="btorch" class="needcam" title="手电筒">🔦</button>
-      <button id="bkeyb" title="手输单号">⌨️</button>
-      <button id="bcards2" title="控制卡">🃏</button>
       <button id="bswitch" class="needcam" title="切换摄像头">🔄</button>
     </div>
+    <div class="tchips">
+      <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end">
+        <span class="tchip" id="tcType">发货出库</span>
+        <span class="tchip t2" id="tcState">请扫描面单</span>
+      </div>
+      <span class="tchip mono" id="tcTime" style="display:none">00:00</span>
+      <div style="display:flex;gap:9px">
+        <button class="tchip needcam" id="btorch" style="border:0;padding:8px 13px">🔦</button>
+        <button class="tchip" id="bkeyb" style="border:0;padding:8px 13px">⌨️</button>
+        <button class="tchip" id="bcards2" style="border:0;padding:8px 13px">🃏</button>
+      </div>
+    </div>
+    <div id="frame"><div class="box"></div><i class="c c1"></i><i class="c c2"></i><i class="c c3"></i><i class="c c4"></i>
+      <div class="scanline"></div></div>
+    <div id="frametip"><div class="a" id="ftA">请扫描面单</div><div class="b" id="ftB">将面单条码放入取景框内</div></div>
     <div id="recitems"><h4 id="recitemsh">本单商品</h4><ul id="recitemslist"></ul></div>
     <div class="bottom">
       <div id="bigv"></div>
@@ -352,6 +395,10 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
         <select id="o-switch"><option value="auto">结束上一单并开新单</option><option value="ignore">忽略，继续录当前单</option></select><span class="chev">›</span></div>
       <div class="rowi"><span class="lab">再扫一次相同单号<small>当前正在录制中</small></span>
         <select id="o-samestop"><option value="0">忽略</option><option value="1">停止并保存</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">扫描区域<small>限定取景框可避免误扫到画面里别的码</small></span>
+        <select id="o-scanarea"><option value="full">整个画面</option><option value="roi">仅取景框内</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">显示取景框<small>限定取景框时强制显示</small></span>
+        <label class="sw"><input type="checkbox" id="o-showframe"><i></i></label></div>
       <div class="rowi"><span class="lab">被过滤的码给出提示<small>排查「为什么没反应」时打开</small></span>
         <label class="sw"><input type="checkbox" id="o-skiptip"><i></i></label></div>
     </div>
@@ -515,6 +562,18 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
   <div class="body" id="vbody"></div>
 </div>
 
+<div class="modal" id="askbox" style="background:rgba(0,0,0,.55);z-index:220;align-items:center;justify-content:center;padding:26px">
+  <div style="background:#fff;border-radius:20px;padding:22px 20px 18px;width:100%;max-width:360px;text-align:center">
+    <div id="askic" style="width:58px;height:58px;border-radius:17px;margin:0 auto 14px;display:flex;
+      align-items:center;justify-content:center;font-size:27px;background:#ffecec;color:var(--red)">✕</div>
+    <div id="asktitle" style="font-size:19px;font-weight:700;margin-bottom:7px"></div>
+    <div id="askmsg" style="font-size:14px;color:var(--dim);line-height:1.7;margin-bottom:18px"></div>
+    <div class="row">
+      <button class="btn" id="askno" style="border-color:#d6dae1"></button>
+      <button class="btn" id="askyes" style="background:var(--red);color:#fff;border-color:transparent;font-weight:600"></button>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -534,6 +593,7 @@ let rules=lsGet(K.rul,null)||DEF_RULES;
 let opts=Object.assign({
   wbrule:'cn',cfmt:'1d',clen:'12-18',cpre:'',cexc:'',skiptip:true,
   scanrule:'strict',scfmt:'both',sclen:'4-64',scpre:'',scexc:'',
+  scanarea:'full',showframe:true,
   dup:'block',sw:'auto',samestop:0,
   q:1080,maxsec:120,audio:true,wake:true,livemark:true,markstyle:'outline',marksn:true,
   tts:true,ttsno:true,ttssn:false,ttscd:true,ttsrate:1,
@@ -574,6 +634,31 @@ const kb=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':n<1073741824?(n/10
 const sanitize=s=>String(s).replace(/[\/\\:*?"<>|\x00-\x1f]/g,'_').replace(/\s+/g,'_').slice(0,100);
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),10000)}
+function blobToB64(b){return new Promise((res,rej)=>{const r=new FileReader();
+  r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(b)})}
+const CapP=()=>{try{return window.Capacitor&&window.Capacitor.Plugins}catch(e){return null}};
+// 导出文件：APK 里写进缓存再拉起系统分享（可存到文件/发微信），网页里走浏览器下载
+async function saveFile(blob,name,label){
+  const P=NATIVE&&CapP();
+  if(P&&P.Filesystem){
+    try{
+      toast('正在导出…',8000);
+      const data=await blobToB64(blob);
+      const w=await P.Filesystem.writeFile({path:name,data,directory:'CACHE',recursive:true});
+      if(P.Share){
+        await P.Share.share({title:name,text:label||name,url:w.uri,dialogTitle:'导出 '+name});
+        toast('已导出：'+name,3000);
+      }else{toast('已保存到：'+w.uri,5000)}
+      return true;
+    }catch(e){
+      if(/cancel/i.test(e&&e.message||'')){toast('已取消');return false}
+      toast('导出失败：'+(e&&e.message||e),4000);return false;
+    }
+  }
+  dl(blob,name);
+  toast('已导出到手机「下载」文件夹：'+name,4500);
+  return true;
+}
 function loadOne(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;
   s.onload=()=>res();s.onerror=()=>rej(new Error('加载失败：'+src));document.head.appendChild(s)})}
 async function loadJS(srcs,glob){
@@ -581,6 +666,22 @@ async function loadJS(srcs,glob){
   const list=Array.isArray(srcs)?srcs:[srcs];let last;
   for(const u of list){try{await loadOne(u);if(window[glob])return}catch(e){last=e}}
   throw last||new Error('脚本加载失败');
+}
+function ask(title,msg,yes,no,icon){
+  return new Promise(res=>{
+    const box=document.getElementById('askbox');
+    document.getElementById('asktitle').textContent=title;
+    document.getElementById('askmsg').textContent=msg||'';
+    document.getElementById('askyes').textContent=yes||'确认';
+    document.getElementById('askno').textContent=no||'取消';
+    document.getElementById('askic').textContent=icon||'✕';
+    box.classList.add('on');
+    const done=v=>{box.classList.remove('on');
+      document.getElementById('askyes').onclick=null;
+      document.getElementById('askno').onclick=null;res(v)};
+    document.getElementById('askyes').onclick=()=>done(true);
+    document.getElementById('askno').onclick=()=>done(false);
+  });
 }
 async function copy(s){if(!s)return;try{await navigator.clipboard.writeText(s);toast('已复制')}catch(e){
   const t=document.createElement('textarea');t.value=s;t.style.position='fixed';t.style.opacity='0';
@@ -708,14 +809,21 @@ function spellNo(no){return String(no).split('').join(' ')}
 
 /* ===================== 摄像头 / 解码 ===================== */
 const video=document.getElementById('cam');
-let stream=null,track=null,detector=null,zxing=null,standby=false,engine='',facing='environment',torch=false;
+let stream=null,track=null,detector=null,zxing=null,zxHints=null,standby=false,engine='',facing='environment',torch=false;
 const seen=new Map();
 async function ensureEngine(){
   if('BarcodeDetector' in window){
     try{detector=new BarcodeDetector({formats:await BarcodeDetector.getSupportedFormats()});return 'native'}catch(e){}}
   await loadJS(['vendor/zxing.min.js',
                 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'],'ZXing');
-  zxing=zxing||new ZXing.MultiFormatReader();zxing.setHints(new Map());
+  zxing=zxing||new ZXing.MultiFormatReader();
+  // 不开 TRY_HARDER，ZXing 对一维码只扫画面中间附近几行，面单放画面上下就识别不到。
+  // 坑：decode(bmp) 内部会 setHints(undefined) 把之前设的清掉，必须每次 decode(bmp, hints) 传进去
+  try{
+    zxHints=new Map();
+    zxHints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+    zxing.setHints(zxHints);
+  }catch(e){zxHints=null}
   return 'zxing';
 }
 function qSize(){const q=+opts.q||1080;return q>=1080?{w:1920,h:1080}:q>=720?{w:1280,h:720}:{w:854,h:480}}
@@ -824,25 +932,49 @@ function wbDesc(){
            any:'任何码都当单号（容易误触发，不建议）'};
   return m[opts.wbrule]||'';
 }
-let busy=false,cv,cx;
+// 与 CSS 里 #frame 的 left/top/width/height 一一对应，所见即所扫
+const ROI={x:.12,y:.32,w:.76,h:.24};
+let busy=false,cv,cx,rcv,rcx;
+// 把取景框区域裁出来单独解码：画面里别的码就不会被误扫
+function roiCanvas(){
+  const w=video.videoWidth,h=video.videoHeight;
+  if(!w||!h)return null;
+  const sx=Math.round(w*ROI.x),sy=Math.round(h*ROI.y),sw=Math.round(w*ROI.w),sh=Math.round(h*ROI.h);
+  const SCALE=Math.min(1,1100/Math.max(sw,sh));
+  rcv=rcv||document.createElement('canvas');
+  rcv.width=Math.round(sw*SCALE);rcv.height=Math.round(sh*SCALE);
+  rcx=rcx||rcv.getContext('2d',{willReadFrequently:true});
+  rcx.drawImage(video,sx,sy,sw,sh,0,0,rcv.width,rcv.height);
+  return rcv;
+}
 async function loop(){
   while(standby){
     try{
       if(video.readyState>=2&&!busy){
         let codes=[];
-        if(engine==='native'){codes=(await detector.detect(video)).map(c=>({text:c.rawValue,fmt:fmtName(c.format)}))}
+        const roi=(opts.scanarea==='roi')?roiCanvas():null;
+        if(engine==='native'){
+          const src=roi||video;
+          codes=(await detector.detect(src)).map(c=>({text:c.rawValue,fmt:fmtName(c.format)}));
+        }
         else{
-          cv=cv||document.createElement('canvas');
           const w=video.videoWidth,h=video.videoHeight;
-          if(w&&h){
-            const s=Math.min(1,900/Math.max(w,h));
-            cv.width=Math.round(w*s);cv.height=Math.round(h*s);
-            cx=cx||cv.getContext('2d',{willReadFrequently:true});
-            cx.drawImage(video,0,0,cv.width,cv.height);
+          if(roi){cv=roi;cx=rcx}
+          else{
+            cv=(cv===rcv||!cv)?document.createElement('canvas'):cv;
+            if(w&&h){
+              const s=Math.min(1,900/Math.max(w,h));
+              cv.width=Math.round(w*s);cv.height=Math.round(h*s);
+              cx=cv.getContext('2d',{willReadFrequently:true});
+              cx.drawImage(video,0,0,cv.width,cv.height);
+            }
+          }
+          if(cv&&cv.width){
             const d=cx.getImageData(0,0,cv.width,cv.height),lum=new Uint8ClampedArray(cv.width*cv.height);
             for(let i=0,j=0;i<d.data.length;i+=4,j++)lum[j]=(d.data[i]*306+d.data[i+1]*601+d.data[i+2]*117)>>10;
-            try{const r=zxing.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(
-              new ZXing.RGBLuminanceSource(lum,cv.width,cv.height))));
+            try{const bmp=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(
+              new ZXing.RGBLuminanceSource(lum,cv.width,cv.height)));
+              const r=zxHints?zxing.decode(bmp,zxHints):zxing.decode(bmp);
               if(r)codes=[{text:r.getText(),fmt:fmtName(r.getBarcodeFormat())}]}catch(e){}
             zxing.reset&&zxing.reset();
           }
@@ -1002,7 +1134,7 @@ async function startOrder(no,opt){
   if(mx>0)maxTimer=setTimeout(()=>{if(cur){toast('已达最大录像时长，自动保存',3000);say('已达最大时长，自动保存');stopOrder()}},mx);
 }
 function elapsed(){return Date.now()-recStart-pausedTotal-(pausedAt?Date.now()-pausedAt:0)}
-function tickDur(){if(cur)updPill()}
+function tickDur(){if(cur){updPill();updChips()}}
 function pauseRec(p){
   if(!cur||!rec)return;
   if(p&&rec.state==='recording'){rec.pause();pausedAt=Date.now();toast('已暂停');say('已暂停')}
@@ -1084,7 +1216,7 @@ async function addItem(raw,fmt){
   if(!cur.thumb)cur.thumb=it.thumb;
   const n=cur.items.filter(i=>!i.snap).length;
   showBig(p.v+'   #'+n,false);
-  renderRecItems();updPill();updWM();sfx('item');
+  renderRecItems();updPill();updWM();updChips();sfx('item');
   say(opts.ttssn?('第 '+n+' 件，'+spellNo(p.v)):('第 '+n+' 件'));
   if(!p.matched)toast('无字段匹配，按原文记录：'+p.v,2400);
 }
@@ -1127,6 +1259,35 @@ function updWM(){
   }else sub.textContent=scan?(standby?'点中间按钮新建任务':'摄像头未启动')
                             :(standby?'正在识别快递单号…':'摄像头未启动');
 }
+function updChips(){
+  const scan=isScan();
+  const tType=document.getElementById('tcType'),tState=document.getElementById('tcState'),
+        tTime=document.getElementById('tcTime');
+  tType.textContent={out:'发货出库',ret:'退货入库',scan:'扫码盘点'}[recType]||'发货出库';
+  tType.className='tchip'+(recType==='ret'?' ret':recType==='scan'?' scan':'');
+  if(cur){
+    const n=cur.items.filter(i=>!i.snap).length;
+    tState.textContent=scan?('已扫 '+n+' 件'):('录制中 · '+n+' 件');
+    tState.className='tchip '+(scan?'scan':'rec');
+    tTime.style.display='';tTime.textContent=mmss(elapsed());
+  }else{
+    tState.textContent=standby?(scan?'请扫描商品':'请扫描面单'):'未启动';
+    tState.className='tchip t2';
+    tTime.style.display='none';
+  }
+  // 取景框
+  const fr=document.getElementById('frame'),ft=document.getElementById('frametip');
+  const roi=opts.scanarea==='roi';
+  const showFrame=standby&&(roi||opts.showframe);
+  fr.classList.toggle('on',showFrame);
+  fr.classList.toggle('roi',roi);
+  const showTip=showFrame&&!cur;
+  ft.classList.toggle('on',showTip);
+  if(showTip){
+    document.getElementById('ftA').textContent=scan?'请扫描商品码':'请扫描面单';
+    document.getElementById('ftB').textContent=roi?'只识别取景框内的码':'将条码放入取景框内';
+  }
+}
 function updPill(){
   const pill=document.getElementById('pill'),scan=isScan();
   if(cur){
@@ -1168,8 +1329,8 @@ function updUI(){
            +(cur&&cur.photo?' · 本次拍照开':''))
          :('扫码模式 · '+({cn:'中国大陆快递面单',i1d:'国际一维码',i2d:'国际二维码',custom:'自定义规则',any:'任意码'}[opts.wbrule])
            +(opts.livemark?' · 水印开':'')))+
-    (opts.tts?' · 语音开':'');
-  updWM();updPill();
+    (opts.scanarea==='roi'?' · 仅取景框':'')+(opts.tts?' · 语音开':'');
+  updWM();updPill();updChips();
   const t=document.getElementById('st-engine-t');
   if(t){t.textContent=standby?('待机中'+(cur?' · 录制中':'')):'摄像头未启动';
     document.getElementById('st-engine').classList.toggle('ok',standby)}
@@ -1242,9 +1403,9 @@ function testRule(i){const r=rules[i],out=document.getElementById('out'+i);if(!o
   if(!m){out.innerHTML='<span style="color:var(--warn)">不匹配</span>';return}
   out.innerHTML='→ <span style="color:var(--green);font-weight:700">'+esc(applyTpl(r.tpl,m))+'</span>'}
 function syncOpts(){
-  ['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd']
+  ['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd','showframe']
     .forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.checked=!!opts[k]});
-  [['wbrule','wbrule'],['cfmt','cfmt'],['scanrule','scanrule'],['scfmt','scfmt'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
+  [['wbrule','wbrule'],['cfmt','cfmt'],['scanrule','scanrule'],['scfmt','scfmt'],['scanarea','scanarea'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
    ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],
    ['ttsrate','ttsrate']].forEach(([id,k])=>{const e=document.getElementById('o-'+id);if(e)e.value=String(opts[k])});
   ['clen','cpre','cexc','sclen','scpre','scexc'].forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.value=opts[k]||''});
@@ -1317,7 +1478,7 @@ async function openOrder(o){
     if(v&&v.blob){vurl=URL.createObjectURL(v.blob);const e=document.getElementById('ovid');if(e)e.src=vurl}}
   document.getElementById('ocopy').onclick=()=>copy(items.map(i=>i.v).join('\n'));
   const ov=document.getElementById('ovideo');if(ov)ov.onclick=async()=>{const v=await DB.get('videos',o.id);
-    if(v&&v.blob)dl(v.blob,sanitize(ymd(o.t)+'-'+hmsf(o.t)+'_'+o.no)+extOf(v.blob.type))};
+    if(v&&v.blob)await saveFile(v.blob,sanitize(ymd(o.t)+'-'+hmsf(o.t)+'_'+o.no)+extOf(v.blob.type),o.no+' 录像')};
   const ob=document.getElementById('oburn');if(ob)ob.onclick=()=>burn(o);
   document.getElementById('odel').onclick=async()=>{
     if(!confirm('删除单据 '+o.no+'？视频和照片一并删除，不可恢复。'))return;
@@ -1326,7 +1487,7 @@ async function openOrder(o){
     orders=orders.filter(x=>x.id!==o.id);closeViewer();renderOrders();updQuota();toast('已删除')};
   body.querySelectorAll('img[data-ph]').forEach(im=>im.onclick=async()=>{
     const id=im.dataset.ph;if(!id)return;const p=await DB.get('photos',id);
-    if(p&&p.blob)dl(p.blob,sanitize(id.replace('#','_'))+'.jpg')});
+    if(p&&p.blob)await saveFile(p.blob,sanitize(id.replace('#','_'))+'.jpg','照片')});
 }
 function extOf(m){return /mp4/.test(m||'')?'.mp4':'.webm'}
 function closeViewer(){document.getElementById('viewer').classList.remove('on');
@@ -1364,7 +1525,7 @@ async function burn(o){
     await new Promise(res=>{v.onended=res});
     mr.stop();
     const blob=await done;URL.revokeObjectURL(v.src);
-    dl(blob,sanitize(ymd(o.t)+'-'+hmsf(o.t)+'_'+o.no+'_水印')+extOf(blob.type));
+    await saveFile(blob,sanitize(ymd(o.t)+'-'+hmsf(o.t)+'_'+o.no+'_水印')+extOf(blob.type),o.no+' 带水印录像');
     bar.firstElementChild.style.width='100%';tip.textContent='已导出带水印的视频';
     toast('补烧完成，已导出',3000);
   }catch(e){tip.textContent='补烧失败：'+e.message;toast('补烧失败：'+e.message,3500)}
@@ -1428,7 +1589,16 @@ document.getElementById('go-scan').onclick=()=>{recType='scan';show('rec');updUI
 document.getElementById('goset').onclick=()=>show('set');
 document.getElementById('gofields').onclick=()=>{renderRules();show('fields')};
 document.getElementById('bclosecam').onclick=async()=>{
-  if(cur&&!confirm('当前正在录制，离开会停止并保存。继续？'))return;
+  if(cur){
+    const scan=isScan();
+    // ✕ 是「关闭」，关闭就不保存；要保存请按中间的停止键
+    const r=await ask('关闭'+(scan?'盘点':'录制')+'页面？',
+      scan?('本次任务已扫的 '+cur.items.filter(i=>!i.snap).length+' 件不会保存。要保存请点中间的「结束并保存」。')
+          :'本段录像和已扫商品都不会保存。要保存请点中间的「停止并保存」。',
+      '确认退出','继续'+(scan?'盘点':'录制'),'✕');
+    if(!r)return;
+    await discardOrder();
+  }
   await quitStandby();show('home')};
 document.getElementById('setback').onclick=()=>show('home');
 document.getElementById('storeback').onclick=()=>show('home');
@@ -1518,12 +1688,12 @@ document.getElementById('scaninput').addEventListener('keydown',async e=>{
   await addItem(v,'keyboard');
 });
 
-['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd']
+['audio','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd','showframe']
   .forEach(k=>{const e=document.getElementById('o-'+k);
     if(e)e.onchange=ev=>{opts[k]=ev.target.checked;lsSet(K.opt,opts);updUI();
       if(k==='livemark'&&ev.target.checked)toast('实时水印会在下一单生效',2400);
       if(k==='tts'&&ev.target.checked)say('语音播报已开启',true)}});
-const selMap=[['wbrule','wbrule',v=>v],['cfmt','cfmt',v=>v],['scanrule','scanrule',v=>v],['scfmt','scfmt',v=>v],['dup','dup',v=>v],['switch','sw',v=>v],
+const selMap=[['wbrule','wbrule',v=>v],['cfmt','cfmt',v=>v],['scanrule','scanrule',v=>v],['scfmt','scfmt',v=>v],['scanarea','scanarea',v=>v],['dup','dup',v=>v],['switch','sw',v=>v],
   ['samestop','samestop',v=>+v],['q','q',v=>+v],['maxsec','maxsec',v=>+v],['markstyle','markstyle',v=>v],
   ['snapdelay','snapdelay',v=>+v],['size','size',v=>+v],['keep','keep',v=>+v],['ttsrate','ttsrate',v=>+v]];
 selMap.forEach(([id,k,f])=>{const e=document.getElementById('o-'+id);
@@ -1538,13 +1708,12 @@ document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{filt=c.dataset.f;re
 document.getElementById('ordwrap').onclick=e=>{
   const li=e.target.closest('li[data-id]');if(!li)return;
   const o=orders.find(x=>String(x.id)===li.dataset.id);if(o)openOrder(o)};
-document.getElementById('row-csv').onclick=()=>{const l=filtered();if(!l.length){toast('没有单据');return}
-  dl(new Blob([csvAll(l)],{type:'text/csv'}),'packing-'+stampNow()+'.csv');toast('已导出 '+l.length+' 单')};
-function doBackup(){
-  dl(new Blob([JSON.stringify({ver:1,t:Date.now(),rules,opts,orders})],{type:'application/json'}),
-     'packing-backup-'+stampNow()+'.json');
-  lsSet(K.bk,{t:Date.now(),count:orders.length});bkInfo();
-  toast('已导出备份（'+orders.length+' 单，不含视频和照片原图）',3200)}
+document.getElementById('row-csv').onclick=async()=>{const l=filtered();if(!l.length){toast('没有单据');return}
+  await saveFile(new Blob([csvAll(l)],{type:'text/csv'}),'清单-'+stampNow()+'.csv',l.length+' 单清单')};
+async function doBackup(){
+  const ok=await saveFile(new Blob([JSON.stringify({ver:1,t:Date.now(),rules,opts,orders})],
+    {type:'application/json'}),'备份-'+stampNow()+'.json',orders.length+' 单备份');
+  if(ok){lsSet(K.bk,{t:Date.now(),count:orders.length});bkInfo()}}
 document.getElementById('row-backup').onclick=doBackup;
 document.getElementById('row-restore').onclick=()=>{
   const inp=document.createElement('input');inp.type='file';inp.accept='.json';
@@ -1589,7 +1758,7 @@ document.getElementById('rules').addEventListener('click',e=>{
   else if(a==='up'&&i>0)[rules[i-1],rules[i]]=[rules[i],rules[i-1]];
   else if(a==='down'&&i<rules.length-1)[rules[i+1],rules[i]]=[rules[i],rules[i+1]];
   lsSet(K.rul,rules);renderRules()});
-document.getElementById('brexport').onclick=()=>dl(new Blob([JSON.stringify(rules,null,2)],{type:'application/json'}),'fields.json');
+document.getElementById('brexport').onclick=()=>saveFile(new Blob([JSON.stringify(rules,null,2)],{type:'application/json'}),'字段规则.json','字段规则');
 document.getElementById('brimport').onclick=()=>{
   const inp=document.createElement('input');inp.type='file';inp.accept='.json';
   inp.onchange=async()=>{const f=inp.files[0];if(!f)return;

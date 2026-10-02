@@ -405,9 +405,17 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
   <div class="topbar noprint"><button class="iconbtn" id="cardsback">‹</button><h2>控制卡</h2>
     <button class="iconbtn" id="bprint" title="打印">🖨️</button></div>
   <div class="pad">
-    <div class="hint noprint" style="margin:4px 0 12px">
+    <div class="hint noprint" style="margin:4px 0 10px">
       打印出来剪开塑封，封箱后往镜头前一晃即可，全程不用碰屏幕。<br>
       同一张卡<b>必须离开画面后才会再次触发</b>，举着不动不会重复执行。
+    </div>
+    <div class="row noprint" style="margin-bottom:14px">
+      <a class="btn pri" href="control-cards.pdf" download style="text-align:center;text-decoration:none;line-height:24px">下载打印版 PDF（A4）</a>
+    </div>
+    <div class="hint noprint" style="margin:0 0 12px">
+      PDF 是排好版的 A4 两页：第一页 8 张标准卡，第二页是停止／抓拍的大号卡（手机架得高时用）。
+      <b>打印时必须选「实际大小 100%」，不要缩放</b>，否则二维码可能扫不出。<br>
+      下面是网页版，可直接用浏览器打印。
     </div>
     <div class="cards" id="cardsbox"></div>
   </div>

@@ -679,7 +679,28 @@ function asciiName(s,fallback){
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),10000)}
 function blobToB64(b){return new Promise((res,rej)=>{const r=new FileReader();
-  r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(b)})}
+  r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('读取文件失败'));r.readAsDataURL(b)})}
+// 整个文件一次性转 base64 丢过桥，几十 MB 的视频会撑爆（表现为「数据解码失败」），
+// 小文件也会卡。改成分片，内存占用恒定，还能报进度。
+const CHUNK=2*1024*1024;
+async function saveChunked(P,blob,name,mime,kind,onProg){
+  const t=await P.MediaSave.begin({name,mime,kind,album:'打包留证'});
+  const token=t.token;
+  try{
+    let off=0;
+    while(off<blob.size){
+      const part=blob.slice(off,Math.min(off+CHUNK,blob.size));
+      const b64=await blobToB64(part);
+      await P.MediaSave.append({token,data:b64});
+      off+=part.size;
+      if(onProg)onProg(off,blob.size);
+    }
+    return await P.MediaSave.end({token});
+  }catch(e){
+    try{await P.MediaSave.abort({token})}catch(_){}   // 别留半截文件
+    throw e;
+  }
+}
 const CapP=()=>{try{return window.Capacitor&&window.Capacitor.Plugins}catch(e){return null}};
 function mimeOf(name,blob){
   if(blob&&blob.type)return blob.type;
@@ -714,21 +735,24 @@ async function saveFile(blob,name,label,textContent){
   if(!c)return false;
   if(c==='copy'){await copy(textContent);return true}
   const mime=mimeOf(name,blob),kind=kindOf(mime);
+  const big=blob.size>CHUNK;
+  const prog=(a,b)=>{if(big)toast('保存中 '+Math.round(a/b*100)+'%（'+kb(b)+'）',60000)};
   try{
-    toast('正在写入…',8000);
-    const data=await blobToB64(blob);
     if(c==='save'){
       // 安卓 11 起 Android/data/<包名> 第三方文件管理器打不开，必须走 MediaStore 写公共目录
       if(!P.MediaSave)throw new Error('此版本不支持保存到系统目录，请改用「分享 / 发送」');
-      const r=await P.MediaSave.save({name,mime,kind,data,album:'打包留证'});
+      toast(big?('正在保存 '+kb(blob.size)+'…'):'正在保存…',60000);
+      const r=await saveChunked(P,blob,name,mime,kind,prog);
       lastSavedPath=r.path||'';
       const where=(kind==='doc')?'用「文件管理 → 下载 → 打包留证」就能找到'
                                 :'已存进系统相册，相册里会出现「打包留证」这个分组';
-      await ask('已保存到手机','位置：'+(r.path||'')+'\n\n'+where,'知道了','复制路径','💾')
-        .then(async ok=>{if(!ok)await copy(r.path||'')});
+      await ask('已保存到手机','位置：'+(r.path||'')+'\n大小：'+kb(blob.size)+'\n\n'+where,
+        '知道了','复制路径','💾').then(async ok=>{if(!ok)await copy(r.path||'')});
       return true;
     }
     // 分享仍走应用缓存里的 file://（系统分享面板只接受 file:// 或 http）
+    toast(big?('正在准备 '+kb(blob.size)+'…'):'正在准备…',60000);
+    const data=await blobToB64(blob);
     const w=await P.Filesystem.writeFile({path:'PackingProof/'+name,data,directory:'CACHE',recursive:true});
     if(!P.Share){toast('已保存到：'+w.uri,5000);return true}
     await P.Share.share({title:name,text:label||name,url:w.uri,dialogTitle:'导出 '+name});
@@ -1625,7 +1649,8 @@ async function openOrder(o){
     if(v&&v.blob)await saveFile(v.blob,videoName(o)+extOf(v.blob.type),o.no+' 录像')};
   const ob=document.getElementById('oburn');if(ob)ob.onclick=()=>burn(o);
   document.getElementById('odel').onclick=async()=>{
-    if(!confirm('删除单据 '+o.no+'？视频和照片一并删除，不可恢复。'))return;
+    if(!await ask('删除这单？','单号 '+o.no+'\n视频、照片和序列号会一并删除，无法恢复。',
+      '确认删除','保留','🗑️'))return;
     await DB.del('orders',o.id);if(o.vid)await DB.del('videos',o.id);
     for(const it of o.items)if(it.ph)await DB.del('photos',it.ph);
     orders=orders.filter(x=>x.id!==o.id);closeViewer();renderOrders();updQuota();toast('已删除')};
@@ -1885,7 +1910,8 @@ document.getElementById('row-restore').onclick=()=>{
   inp.onchange=async()=>{const f=inp.files[0];if(!f)return;
     try{const d=JSON.parse(await f.text());
       if(!d||!Array.isArray(d.orders))throw new Error('格式不对');
-      const merge=orders.length?confirm('当前有 '+orders.length+' 单。\n\n确定 = 合并\n取消 = 清空再恢复'):true;
+      const merge=orders.length?await ask('怎么恢复？','当前已有 '+orders.length+' 单。\n\n合并：保留现有，只补进备份里没有的\n清空重建：先删光现有，再按备份还原',
+        '合并','清空重建','📥'):true;
       if(!merge){await DB.clear('orders');await DB.clear('videos');await DB.clear('photos');orders=[]}
       const have=new Set(orders.map(o=>o.id));let n=0;
       for(const o of d.orders){if(have.has(o.id))continue;o.vid=false;o.vsize=0;await DB.put('orders',o);orders.push(o);n++}
@@ -1897,13 +1923,15 @@ document.getElementById('row-restore').onclick=()=>{
   inp.click()};
 document.getElementById('row-delvideo').onclick=async()=>{
   const n=orders.filter(o=>o.vid).length;if(!n){toast('没有视频');return}
-  if(!confirm('删除全部 '+n+' 段视频？单据、序列号和照片保留。'))return;
+  if(!await ask('只删视频？','会删掉全部 '+n+' 段录像，共 '+kb(orders.reduce((a,o)=>a+(o.vsize||0),0))+'。\n单据、序列号和照片都保留。',
+    '确认删除','取消','🎬'))return;
   await DB.clear('videos');
   for(const o of orders)if(o.vid){o.vid=false;o.vsize=0;await DB.put('orders',o)}
   renderOrders();updQuota();toast('视频已删除')};
 document.getElementById('row-clear').onclick=async()=>{
   if(!orders.length)return;
-  if(!confirm('清空全部 '+orders.length+' 单（含视频和照片）？不可恢复。'))return;
+  if(!await ask('清空全部单据？','共 '+orders.length+' 单，连同视频和照片一起删除，无法恢复。\n建议先导出一份备份。',
+    '确认清空','取消','⚠️'))return;
   await DB.clear('orders');await DB.clear('videos');await DB.clear('photos');
   orders=[];renderOrders();updQuota();toast('已清空')};
 document.getElementById('bnewrule').onclick=()=>{
@@ -1915,10 +1943,13 @@ document.getElementById('rules').addEventListener('input',e=>{
   rules[i][f]=e.target.type==='checkbox'?e.target.checked:e.target.value;
   if(f==='on')box.classList.toggle('off',!rules[i].on);
   lsSet(K.rul,rules);testRule(i)});
-document.getElementById('rules').addEventListener('click',e=>{
+document.getElementById('rules').addEventListener('click',async e=>{
   const b=e.target.closest('button[data-act]');if(!b)return;
   const i=+b.closest('.rule').dataset.i,a=b.dataset.act;
-  if(a==='del'){if(!confirm('删除字段「'+(rules[i].col||'')+'」？'))return;rules.splice(i,1)}
+  if(a==='del'){
+    if(!await ask('删除这个字段？','「'+(rules[i].col||'')+'」删掉后，CSV 里就不会再有这一列。',
+      '删除','取消','🏷️'))return;
+    rules.splice(i,1)}
   else if(a==='star')rules.forEach((r,j)=>r.primary=(j===i));
   else if(a==='up'&&i>0)[rules[i-1],rules[i]]=[rules[i],rules[i-1]];
   else if(a==='down'&&i<rules.length-1)[rules[i+1],rules[i]]=[rules[i],rules[i+1]];

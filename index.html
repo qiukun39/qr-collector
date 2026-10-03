@@ -162,16 +162,31 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 .side button:active{background:rgba(70,70,76,.75)}
 .side button.on{background:rgba(255,200,60,.85);color:#1a1d21}
 /* 当前单商品 */
-#recitems{position:absolute;left:12px;right:12px;bottom:188px;max-height:34vh;overflow-y:auto;
-  background:rgba(0,0,0,.42);backdrop-filter:blur(8px);border-radius:12px;padding:9px 11px;display:none}
-#recitems.on{display:block}
-#recitems h4{margin:0 0 6px;font-size:11.5px;color:#b9c3d2;font-weight:600;letter-spacing:.5px}
-#recitems ul{list-style:none;margin:0;padding:0}
-#recitems li{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13.5px;color:#fff;
+/* 刚扫到的大字：放在取景框正下方，3 秒后淡出，不常驻挡画面 */
+#bigv{position:absolute;left:0;right:0;top:calc(32% + 24% + 18px);text-align:center;
+  display:none;pointer-events:none;transition:opacity .55s}
+#bigv.on{display:block;opacity:1}
+#bigv.fade{opacity:0}
+#bigv .v{font-size:34px;font-weight:800;font-family:ui-monospace,Menlo,monospace;color:#fff;
+  text-shadow:0 2px 12px #000,0 0 6px #000;word-break:break-all;line-height:1.15;padding:0 14px}
+#bigv .n{font-size:15px;font-weight:700;color:#9ef0c0;margin-top:5px;text-shadow:0 2px 8px #000}
+#bigv.dup .v{color:#ff9b9b}
+#bigv.dup .n{color:#ffb4b4}
+/* 本单清单改成底部弹层，平时不占画面 */
+#sheet{position:absolute;left:0;right:0;bottom:0;max-height:62%;display:none;flex-direction:column;
+  background:rgba(18,20,25,.96);backdrop-filter:blur(10px);border-radius:18px 18px 0 0;
+  padding:14px 14px calc(14px + env(safe-area-inset-bottom));z-index:40}
+#sheet.on{display:flex}
+#sheet .hd{display:flex;align-items:center;font-size:15px;font-weight:600;color:#fff;
+  flex:0 0 auto;margin-bottom:8px}
+#sheet .hd button{margin-left:auto;background:#262b33;border:0;color:#cfd6e2;width:34px;height:34px;
+  border-radius:50%;font-size:15px}
+#sheet ul{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1 1 auto}
+#sheet li{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:15px;color:#fff;
   border-bottom:1px solid rgba(255,255,255,.08);font-family:ui-monospace,Menlo,monospace}
-#recitems li:last-child{border-bottom:0}
-#recitems li .n{color:#8e99aa;font-size:11px;flex:0 0 20px}
-#recitems li img{width:28px;height:28px;border-radius:5px;object-fit:cover;flex:0 0 auto}
+#sheet li:last-child{border-bottom:0}
+#sheet li .n{color:#8e99aa;font-size:12px;flex:0 0 26px}
+#sheet li img{width:38px;height:38px;border-radius:7px;object-fit:cover;flex:0 0 auto}
 /* 底部 */
 .bottom{position:absolute;left:0;right:0;bottom:0;padding:0 14px calc(12px + env(safe-area-inset-bottom));
   background:linear-gradient(to top,rgba(0,0,0,.72),rgba(0,0,0,0));text-align:center}
@@ -207,11 +222,11 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
   border-radius:12px;padding:12px;min-height:48px;color:#fff;backdrop-filter:blur(6px)}
 #scanin input::placeholder{color:#8e99aa}
 /* 盘点模式没有录像，隐藏录制相关控件 */
-#p-rec[data-mode="scan"] #bpause{visibility:hidden}
-#p-rec[data-mode="scan"] #recitems{bottom:322px;max-height:26vh}
-#bigv{font-size:30px;font-weight:800;font-family:ui-monospace,Menlo,monospace;color:#fff;
-  text-shadow:0 2px 10px #000;word-break:break-all;text-align:center;margin-bottom:10px;display:none}
-#p-rec[data-mode="scan"] #bigv.on{display:block}
+/* 盘点没有暂停，那个位置放「清单」；录像模式反过来 */
+#p-rec[data-mode="scan"] #bpause{display:none}
+#p-rec:not([data-mode="scan"]) #blist{display:none}
+/* 盘点模式不录像，左上那块水印预览没有意义，去掉 */
+#p-rec[data-mode="scan"] #wm{display:none}
 #countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
   background:rgba(0,0,0,.42);color:#fff;font-size:108px;font-weight:800;text-shadow:0 4px 20px #000}
 #countdown.on{display:flex}
@@ -219,7 +234,6 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 .shotfx{animation:sh .4s ease}@keyframes sh{0%{filter:brightness(2.8)}100%{filter:none}}
 .dupfx{animation:dp .7s ease}@keyframes dp{0%,100%{box-shadow:none}
   20%,60%{box-shadow:0 0 0 9999px rgba(245,34,45,.42) inset}}
-#bigv.dup{color:#ff9b9b}
 /* 手输单号 */
 #keyb{position:absolute;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:20px}
 #keyb.on{display:flex}
@@ -342,9 +356,12 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     <div id="frame"><div class="box"></div><i class="c c1"></i><i class="c c2"></i><i class="c c3"></i><i class="c c4"></i>
       <div class="scanline"></div></div>
     <div id="frametip"><div class="a" id="ftA">请扫描面单</div><div class="b" id="ftB">将面单条码放入取景框内</div></div>
-    <div id="recitems"><h4 id="recitemsh">本单商品</h4><ul id="recitemslist"></ul></div>
+    <div id="bigv"><div class="v" id="bigvV"></div><div class="n" id="bigvN"></div></div>
+    <div id="sheet">
+      <div class="hd"><span id="sheeth">本单商品</span><button id="sheetclose">✕</button></div>
+      <ul id="sheetlist"></ul>
+    </div>
     <div class="bottom">
-      <div id="bigv"></div>
       <div id="scanin"><input type="text" class="mono" id="scaninput"
         placeholder="扫码枪或手输，回车入库" autocapitalize="characters" autocorrect="off" spellcheck="false"></div>
       <div id="pill">点中间按钮开始待机</div>
@@ -353,6 +370,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
         <span class="bigwrap"><button id="bbig"><span class="inner" id="biginner"></span></button>
           <span id="biglbl">开启摄像头</span></span>
         <button class="mini-btn" id="bpause" disabled><i>⏸</i>暂停</button>
+        <button class="mini-btn" id="blist"><i>☰</i>清单</button>
       </div>
       <div class="modeline" id="modeline"></div>
     </div>
@@ -1182,7 +1200,7 @@ async function startOrder(no,opt){
     }catch(e){rec=null;stopLivePipe();cur.lm=false;toast('录像启动失败：'+e.message,3500)}
   }
   if(opts.wake&&'wakeLock' in navigator){try{wake=await navigator.wakeLock.request('screen')}catch(e){}}
-  document.getElementById('bigv').classList.remove('on');
+  hideBig();
   sfx('start');
   toast(scan?('开始任务：'+no):('开录：'+no),2200);
   say(scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像'),true);
@@ -1215,7 +1233,7 @@ async function stopOrder(silent){
   else{o.vid=false;o.vsize=0}
   if(!o.thumb&&o.items.length)o.thumb=o.items[0].thumb||null;
   await DB.put('orders',o);orders.unshift(o);
-  document.getElementById('bigv').classList.remove('on');
+  hideBig();closeSheet();
   updUI();renderRecItems();renderOrders();updQuota();
   if(!silent){sfx('stop');
     const n=o.items.filter(i=>!i.snap).length;
@@ -1239,10 +1257,19 @@ function flashFx(){const v=document.getElementById('cam');
   v.classList.remove('shotfx');void v.offsetWidth;v.classList.add('shotfx')}
 function dupFx(){const w=document.getElementById('p-rec');
   w.classList.remove('dupfx');void w.offsetWidth;w.classList.add('dupfx')}
-function showBig(text,dup){
+let bigTimer=null,bigFade=null;
+function showBig(text,sub,dup){
   const e=document.getElementById('bigv');
-  e.textContent=text;e.classList.add('on');e.classList.toggle('dup',!!dup);
+  document.getElementById('bigvV').textContent=text;
+  document.getElementById('bigvN').textContent=sub||'';
+  clearTimeout(bigTimer);clearTimeout(bigFade);
+  e.classList.remove('fade');e.classList.add('on');e.classList.toggle('dup',!!dup);
+  // 确认完就让开，画面保持干净
+  bigTimer=setTimeout(()=>{e.classList.add('fade');
+    bigFade=setTimeout(()=>e.classList.remove('on','fade'),600)},3000);
 }
+function hideBig(){const e=document.getElementById('bigv');
+  clearTimeout(bigTimer);clearTimeout(bigFade);e.classList.remove('on','fade','dup')}
 async function shoot(lines){
   const w=video.videoWidth,h=video.videoHeight;
   if(!w||!h)return null;
@@ -1261,7 +1288,7 @@ async function addItem(raw,fmt){
   const p=purify(raw);
   if(!p.v){sfx('bad');toast('提纯结果为空');return}
   if(cur.items.some(i=>i.v===p.v)){
-    sfx('dup');dupFx();showBig(p.v+'  已扫过',true);
+    sfx('dup');dupFx();showBig(p.v,'重复 · 本单已有，未计入',true);
     if(navigator.vibrate)navigator.vibrate([90,60,90]);
     toast('重复：'+p.v+'（本单已有）',2200);say('重复扫描',true);return}
   const idx=cur.items.length+1;
@@ -1274,7 +1301,7 @@ async function addItem(raw,fmt){
   cur.items.push(it);
   if(!cur.thumb)cur.thumb=it.thumb;
   const n=cur.items.filter(i=>!i.snap).length;
-  showBig(p.v+'   #'+n,false);
+  showBig(p.v,'第 '+n+' 件 · 已入库',false);
   renderRecItems();updPill();updWM();updChips();sfx('item');
   say(opts.ttssn?('第 '+n+' 件，'+spellNo(p.v)):('第 '+n+' 件'));
   if(!p.matched)toast('无字段匹配，按原文记录：'+p.v,2400);
@@ -1326,7 +1353,7 @@ function updChips(){
   tType.className='tchip'+(recType==='ret'?' ret':recType==='scan'?' scan':'');
   if(cur){
     const n=cur.items.filter(i=>!i.snap).length;
-    tState.textContent=scan?('已扫 '+n+' 件'):('录制中 · '+n+' 件');
+    tState.textContent=(scan?('已扫 '+n+' 件'):('录制中 · '+n+' 件'))+' ⌄';
     tState.className='tchip '+(scan?'scan':'rec');
     tTime.style.display='';tTime.textContent=mmss(elapsed());
   }else{
@@ -1349,16 +1376,15 @@ function updChips(){
 }
 function updPill(){
   const pill=document.getElementById('pill'),scan=isScan();
+  // 有任务时顶部胶囊已经在显示状态和件数，底部不再重复，把画面让出来
   if(cur){
-    const n=cur.items.filter(i=>!i.snap).length;
-    if(scan){pill.classList.remove('rec');pill.textContent='盘点中 '+mmss(elapsed())+' · 已扫 '+n+' 件'}
-    else{pill.classList.add('rec');
-      pill.textContent='● 录制中 '+mmss(elapsed())+(rec&&rec.state==='paused'?'（已暂停）':'')+' · '+n+' 件'}
-  }else{
-    pill.classList.remove('rec');
-    pill.textContent=scan?(standby?'扫码器已就绪 · 点中间按钮新建任务':'点中间按钮开始')
-                         :(standby?'扫码器已就绪 · 识别单号后自动录像':'点中间按钮开始待机');
+    if(rec&&rec.state==='paused'){pill.style.display='';pill.classList.add('rec');pill.textContent='● 已暂停 · 晃「继续」卡恢复'}
+    else pill.style.display='none';
+    return;
   }
+  pill.style.display='';pill.classList.remove('rec');
+  pill.textContent=scan?(standby?'扫码器已就绪 · 点中间按钮新建任务':'点中间按钮开始')
+                       :(standby?'扫码器已就绪 · 识别单号后自动录像':'点中间按钮开始待机');
 }
 function updUI(){
   const scan0=isScan();
@@ -1376,6 +1402,8 @@ function updUI(){
                             :'点下方按钮开启<br>开启后对准快递面单即可自动录像';
   document.getElementById('bsnap').disabled=!cur;
   document.getElementById('bpause').disabled=!cur;
+  document.getElementById('blist').disabled=!cur;
+  document.getElementById('tcState').style.cursor=cur?'pointer':'default';
   document.getElementById('bpause').querySelector('i').textContent=(rec&&rec.state==='paused')?'▶':'⏸';
   document.getElementById('bpause').childNodes[1].nodeValue=(rec&&rec.state==='paused')?'继续':'暂停';
   const scan=isScan();
@@ -1395,15 +1423,22 @@ function updUI(){
     document.getElementById('st-engine').classList.toggle('ok',standby)}
 }
 function renderRecItems(){
-  const box=document.getElementById('recitems');
-  if(!cur||!cur.items.length){box.classList.remove('on');return}
-  box.classList.add('on');
-  document.getElementById('recitemsh').textContent='本单商品 '+cur.items.filter(i=>!i.snap).length+' 件';
-  document.getElementById('recitemslist').innerHTML=cur.items.slice().reverse().map((it,i)=>{
+  const open=document.getElementById('sheet').classList.contains('on');
+  if(!cur){closeSheet();return}
+  document.getElementById('sheeth').textContent='本单商品 '+cur.items.filter(i=>!i.snap).length+' 件';
+  document.getElementById('sheetlist').innerHTML=cur.items.slice().reverse().map((it,i)=>{
     const no=cur.items.length-i;
     return `<li><span class="n">${no}</span>${it.thumb?`<img src="${it.thumb}">`:''}
-      <span style="flex:1 1 auto;word-break:break-all${it.snap?';color:#9aa6bb':''}">${esc(it.v)}</span></li>`}).join('');
+      <span style="flex:1 1 auto;word-break:break-all${it.snap?';color:#9aa6bb':''}">${esc(it.v)}</span></li>`}).join('')
+      ||'<li style="color:#8e99aa;font-family:inherit">还没有扫到商品</li>';
+  if(open)document.getElementById('sheet').classList.add('on');
 }
+function openSheet(){
+  if(!cur){toast(isScan()?'还没有开始任务':'还没有开始录制');return}
+  renderRecItems();
+  document.getElementById('sheet').classList.add('on');
+}
+function closeSheet(){document.getElementById('sheet').classList.remove('on')}
 
 /* ===================== 首页渲染 ===================== */
 function matchQ(o,q){return !q||o.no.toLowerCase().includes(q)||o.items.some(i=>String(i.v).toLowerCase().includes(q))}
@@ -1727,6 +1762,10 @@ document.getElementById('bswitch').onclick=async()=>{if(cur){toast('录制中不
   facing=facing==='environment'?'user':'environment';await quitStandby();await startStandby()};
 document.getElementById('bsnap').onclick=()=>snapWithDelay(+opts.snapdelay||0);
 document.getElementById('bpause').onclick=()=>pauseRec(rec&&rec.state==='recording');
+document.getElementById('blist').onclick=openSheet;
+document.getElementById('sheetclose').onclick=closeSheet;
+document.getElementById('tcState').onclick=()=>{if(cur)openSheet()};
+document.getElementById('sheet').addEventListener('click',e=>{if(e.target.id==='sheet')closeSheet()});
 document.getElementById('bkeyb').onclick=openTaskDialog;
 document.getElementById('bkeybcancel').onclick=()=>document.getElementById('keyb').classList.remove('on');
 document.getElementById('bkeybok').onclick=async()=>{

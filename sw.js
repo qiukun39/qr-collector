@@ -1,7 +1,7 @@
 /* 离线缓存：stale-while-revalidate，改版只需 bump VER */
-const VER = 'pk-v18';
+const VER = 'pk-v19';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg',
-               './vendor/qrcode.js', './vendor/zxing.min.js'];
+               './vendor/qrcode.js', './vendor/zxing.min.js', './vendor/jszip.min.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VER).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

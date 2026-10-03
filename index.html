@@ -683,8 +683,8 @@ function blobToB64(b){return new Promise((res,rej)=>{const r=new FileReader();
 // 整个文件一次性转 base64 丢过桥，几十 MB 的视频会撑爆（表现为「数据解码失败」），
 // 小文件也会卡。改成分片，内存占用恒定，还能报进度。
 const CHUNK=2*1024*1024;
-async function saveChunked(P,blob,name,mime,kind,onProg){
-  const t=await P.MediaSave.begin({name,mime,kind,album:'打包留证'});
+async function saveChunked(P,blob,name,mime,kind,onProg,dest){
+  const t=await P.MediaSave.begin({name,mime,kind,album:'打包留证',dest:dest||'media'});
   const token=t.token;
   try{
     let off=0;
@@ -695,7 +695,8 @@ async function saveChunked(P,blob,name,mime,kind,onProg){
       off+=part.size;
       if(onProg)onProg(off,blob.size);
     }
-    return await P.MediaSave.end({token});
+    const e=await P.MediaSave.end({token});
+    return {path:e.path||t.path,size:e.size,uri:e.uri};
   }catch(e){
     try{await P.MediaSave.abort({token})}catch(_){}   // 别留半截文件
     throw e;
@@ -718,7 +719,7 @@ function kindOf(mime){
   return 'doc';
 }
 // 导出：APK 里让用户选「保存到手机」还是「分享发送」，网页里走浏览器下载
-async function saveFile(blob,name,label,textContent){
+async function saveFile(blob,name,label,textContent,forceMode){
   name=asciiName(name,'export');
   const P=NATIVE&&CapP();
   if(!(P&&P.Filesystem)){
@@ -731,7 +732,7 @@ async function saveFile(blob,name,label,textContent){
                 d:isMedia?'存进系统相册的「打包留证」分组':'存进「下载 / 打包留证」，文件管理器能直接找到'},
                {k:'share',t:'分享 / 发送',d:'发微信、存到「文件」、发给自己'}];
   if(textContent!=null)opts2.push({k:'copy',t:'复制内容',d:'直接复制成文本，粘到哪都行'});
-  const c=await pick('导出 '+name,label||'',opts2);
+  const c=forceMode||await pick('导出 '+name,label||'',opts2);
   if(!c)return false;
   if(c==='copy'){await copy(textContent);return true}
   const mime=mimeOf(name,blob),kind=kindOf(mime);
@@ -742,11 +743,29 @@ async function saveFile(blob,name,label,textContent){
       // 安卓 11 起 Android/data/<包名> 第三方文件管理器打不开，必须走 MediaStore 写公共目录
       if(!P.MediaSave)throw new Error('此版本不支持保存到系统目录，请改用「分享 / 发送」');
       toast(big?('正在保存 '+kb(blob.size)+'…'):'正在保存…',60000);
-      const r=await saveChunked(P,blob,name,mime,kind,prog);
+      let r;
+      if(kind==='video'&&P.MediaSave.remux){
+        // MediaRecorder 吐的是流式 MP4，头里没有 moov（时长和关键帧索引都没有），
+        // 相册会显示 1 秒、进度条拖不动。先落缓存再 remux 成标准 MP4 补上。
+        const tmp=await saveChunked(P,blob,name,mime,kind,prog,'cache');
+        toast('正在整理视频索引…',60000);
+        const rr=await P.MediaSave.remux({srcPath:tmp.path,name,mime,kind,album:'打包留证'});
+        try{await P.MediaSave.rm({path:tmp.path})}catch(_){}
+        if(rr&&rr.remuxed){
+          r={path:rr.path,size:blob.size,durationMs:rr.durationMs};
+        }else{
+          // 编码格式装不进 MP4（比如 VP8/Opus），退回原样保存
+          toast('无法重封装（'+((rr&&rr.reason)||'未知')+'），按原样保存',3500);
+          r=await saveChunked(P,blob,name,mime,kind,prog);
+        }
+      }else{
+        r=await saveChunked(P,blob,name,mime,kind,prog);
+      }
       lastSavedPath=r.path||'';
       const where=(kind==='doc')?'用「文件管理 → 下载 → 打包留证」就能找到'
                                 :'已存进系统相册，相册里会出现「打包留证」这个分组';
-      await ask('已保存到手机','位置：'+(r.path||'')+'\n大小：'+kb(blob.size)+'\n\n'+where,
+      const dur=(r&&r.durationMs)?('\n时长：'+mmss(r.durationMs)):'';
+      await ask('已保存到手机','位置：'+(r.path||'')+'\n大小：'+kb(blob.size)+dur+'\n\n'+where,
         '知道了','复制路径','💾').then(async ok=>{if(!ok)await copy(r.path||'')});
       return true;
     }
@@ -1623,6 +1642,10 @@ async function openOrder(o){
         o.type==='scan'?'':('　时长 '+mmss(o.dur||0)+'　'+(o.q||'')+'p'+(o.audio?' · 有声':' · 静音')+(o.lm?' · 已带水印':''))}<br>
         ${items.length} 件商品 · ${o.items.filter(i=>i.ph).length} 张照片${o.type==='scan'?'':(' · 视频 '+(o.vid?kb(o.vsize):'无'))}</div>
       <div class="row" style="margin-top:11px">
+        <button class="btn sm pri" id="osaveall" style="flex:1 1 100%">一键保存全部（${
+          (o.vid?1:0)+o.items.filter(i=>i.ph).length} 个文件）</button>
+      </div>
+      <div class="row" style="margin-top:8px">
         <button class="btn sm" id="ocopy">复制序列号</button>
         ${o.type==='scan'?'':`<button class="btn sm" id="ovideo" ${o.vid?'':'disabled'}>导出视频</button>`}
       </div>
@@ -1644,6 +1667,7 @@ async function openOrder(o){
   document.getElementById('viewer').classList.add('on');
   if(o.vid){const v=await DB.get('videos',o.id);
     if(v&&v.blob){vurl=URL.createObjectURL(v.blob);const e=document.getElementById('ovid');if(e)e.src=vurl}}
+  document.getElementById('osaveall').onclick=()=>saveAll(o);
   document.getElementById('ocopy').onclick=()=>copy(items.map(i=>i.v).join('\n'));
   const ov=document.getElementById('ovideo');if(ov)ov.onclick=async()=>{const v=await DB.get('videos',o.id);
     if(v&&v.blob)await saveFile(v.blob,videoName(o)+extOf(v.blob.type),o.no+' 录像')};
@@ -1659,11 +1683,13 @@ async function openOrder(o){
     if(p&&p.blob)await saveFile(p.blob,asciiName(id.replace('#','_'))+'.jpg','照片')});
 }
 function extOf(m){return /mp4/.test(m||'')?'.mp4':'.webm'}
-// 视频文件名：单号_序列号，多件时加 _xN
+// 业务类型的英文标记，跟 PutPack 一致，便于电脑端按前缀分类
+const TYPE_TAG={out:'ship',ret:'return',scan:'scan'};
+// 视频文件名：单号_ship_序列号，多件时加 _xN
 // 不用 @ —— 安卓取扩展名的正则 [a-zA-Z_0-9.\-()%] 不认 @，用了分享面板会空白
 function videoName(o,suffix){
   const its=(o.items||[]).filter(i=>!i.snap);
-  let n=asciiName(o.no,'order');
+  let n=asciiName(o.no,'order')+'_'+(TYPE_TAG[o.type||'out']||'ship');
   if(its.length)n+='_'+asciiName(its[0].v,'sn');
   else n+='_'+ymd(o.t)+'-'+hmsf(o.t);
   if(its.length>1)n+='_x'+its.length;
@@ -1673,6 +1699,115 @@ function videoName(o,suffix){
 function closeViewer(){document.getElementById('viewer').classList.remove('on');
   if(vurl){URL.revokeObjectURL(vurl);vurl=null}}
 document.getElementById('vclose').onclick=closeViewer;
+// 一单里的所有东西：视频 + 商品照片 + 手动抓拍 + 清单
+async function collectFiles(o){
+  const out=[];
+  if(o.vid){
+    const v=await DB.get('videos',o.id);
+    if(v&&v.blob)out.push({blob:v.blob,name:videoName(o)+extOf(v.blob.type),kind:'video'});
+  }
+  const items=o.items.filter(i=>!i.snap),snaps=o.items.filter(i=>i.snap);
+  const base=asciiName(o.no,'order')+'_'+(TYPE_TAG[o.type||'out']||'ship');
+  for(let i=0;i<items.length;i++){
+    const it=items[i];if(!it.ph)continue;
+    const p=await DB.get('photos',it.ph);
+    if(p&&p.blob)out.push({blob:p.blob,name:base+'_'+String(i+1).padStart(2,'0')+'_'+asciiName(it.v,'sn')+'.jpg',kind:'image'});
+  }
+  for(let i=0;i<snaps.length;i++){
+    const it=snaps[i];if(!it.ph)continue;
+    const p=await DB.get('photos',it.ph);
+    if(p&&p.blob)out.push({blob:p.blob,name:base+'_snap'+String(i+1).padStart(2,'0')+'.jpg',kind:'image'});
+  }
+  return out;
+}
+function orderCsv(o){
+  const q=x=>'"'+String(x==null?'':x).replace(/"/g,'""')+'"';
+  const cs=cols();o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)}));
+  const rows=[['单号','类型','开始时间','时长','序号','主值',...cs,'原始内容','照片','码制']];
+  o.items.forEach((i,k)=>rows.push([o.no,{out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'],ts(o.t),
+    mmss(o.dur||0),k+1,i.v,...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'有':'',i.fmt||'']));
+  return '\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n');
+}
+async function saveAll(o){
+  const files=await collectFiles(o);
+  if(!files.length){toast('这一单没有视频也没有照片');return}
+  const nv=files.filter(f=>f.kind==='video').length,np=files.length-nv;
+  const scan=(o.type||'out')==='scan';
+  const zipFiles=files;
+  // 发货/退货就一段视频加几张图，直接存；只有盘点会扫出几十张照片，才值得打包
+  let choice='all';
+  if(scan&&np>1){
+    choice=await pick('一键保存 '+o.no,np+' 张照片',
+      [{k:'zip',t:'打包成一个 ZIP',d:'照片+清单压成一个文件，存进「下载」，整包发出去方便'},
+       {k:'all',t:'照片逐张进相册',d:np+' 张会一张张刷进相册，之后在相册里翻'}]);
+    if(!choice)return;
+  }
+  const P=NATIVE&&CapP();
+
+  if(choice==='zip'){
+    try{
+      toast('正在打包…',60000);
+      await loadJS(['vendor/jszip.min.js','https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'],'JSZip');
+      const zip=new JSZip();
+      zip.file('清单.csv',orderCsv(o));
+      zip.file('说明.txt',
+        '单号：'+o.no+'\r\n'+
+        '类型：'+({out:'打包发货',ret:'拆包退货',scan:'扫码盘点'}[o.type||'out'])+'\r\n'+
+        '开始：'+ts(o.t)+'\r\n'+
+        (o.dur?('时长：'+mmss(o.dur)+'\r\n'):'')+
+        '商品：'+o.items.filter(i=>!i.snap).length+' 件\r\n'+
+        '序列号：\r\n'+o.items.filter(i=>!i.snap).map((i,k)=>'  '+(k+1)+'. '+i.v).join('\r\n')+'\r\n'+
+        '');
+      for(let i=0;i<zipFiles.length;i++){
+        zip.file(zipFiles[i].name,zipFiles[i].blob);
+        toast('正在打包… '+(i+1)+'/'+zipFiles.length,60000);
+      }
+      const blob=await zip.generateAsync({type:'blob',compression:'STORE'},
+        m=>{if(m.percent>5)toast('压缩中 '+Math.round(m.percent)+'%',60000)});
+      await saveFile(blob,asciiName(o.no,'order')+'_'+(TYPE_TAG[o.type||'out']||'ship')+'_pack.zip',
+        o.no+'（'+zipFiles.length+' 个文件）',null,'save');
+    }catch(e){toast('打包失败：'+(e&&e.message||e),4000)}
+    return;
+  }
+
+  // 逐个存进系统目录
+  if(!(P&&P.MediaSave)){
+    for(const f of files)dl(f.blob,f.name);
+    dl(new Blob([orderCsv(o)],{type:'text/csv'}),asciiName(o.no,'order')+'_list.csv');
+    toast('已下载 '+(files.length+1)+' 个文件',4000);
+    return;
+  }
+  let ok=0,fail=0,lastPath='';
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    toast('保存中 '+(i+1)+'/'+files.length+'　'+f.name,60000);
+    try{
+      const mime=mimeOf(f.name,f.blob);
+      if(f.kind==='video'&&P.MediaSave.remux){
+        const tmp=await saveChunked(P,f.blob,f.name,mime,'video',null,'cache');
+        const rr=await P.MediaSave.remux({srcPath:tmp.path,name:f.name,mime,kind:'video',album:'打包留证'});
+        try{await P.MediaSave.rm({path:tmp.path})}catch(_){}
+        if(!rr||!rr.remuxed)await saveChunked(P,f.blob,f.name,mime,'video',null);
+        lastPath=(rr&&rr.path)||lastPath;
+      }else{
+        const r=await saveChunked(P,f.blob,f.name,mime,f.kind,null);
+        lastPath=r.path||lastPath;
+      }
+      ok++;
+    }catch(e){fail++}
+  }
+  // 清单也一并存一份
+  let csvPath='';
+  try{
+    const r=await saveChunked(P,new Blob([orderCsv(o)],{type:'text/csv'}),
+      asciiName(o.no,'order')+'_'+(TYPE_TAG[o.type||'out']||'ship')+'_list.csv','text/csv','doc',null);
+    csvPath=r.path||'';ok++;
+  }catch(e){fail++}
+  await ask(fail?('保存完成，'+fail+' 个失败'):'全部保存完成',
+    '成功 '+ok+' 个'+(fail?('，失败 '+fail+' 个'):'')+'\n\n'+
+    '视频和照片：相册里的「打包留证」分组\n清单 CSV：'+(csvPath||'下载 / 打包留证'),
+    '知道了','复制路径',fail?'⚠️':'✅').then(async x=>{if(!x)await copy(lastPath||csvPath)});
+}
 async function burn(o){
   const r0=await DB.get('videos',o.id);
   if(!r0||!r0.blob){toast('没有视频');return}

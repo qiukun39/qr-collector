@@ -2,7 +2,6 @@ package com.qk.packingproof;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
@@ -18,6 +17,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // 自写插件必须在 super.onCreate 之前注册
+        registerPlugin(MediaSavePlugin.class);
         super.onCreate(savedInstanceState);
 
         // 打包台上手机长时间亮屏，避免录像中途熄屏

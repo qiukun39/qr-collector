@@ -1886,6 +1886,19 @@ async function ppSend(o,mode){
     }
     return true;
   }catch(e){
+    let kind0=PPBackup.classify(e);
+    // 凭据失效不该让人重新扫码：地址和设备号都还在，自动重新注册一次，
+    // 电脑端那边再点一次「允许」就恢复了
+    if(kind0==='credential'&&!o.__reenroll){
+      o.__reenroll=1;
+      try{
+        if(!quiet)toast('配对已失效，正在重新连接电脑…',30000);
+        await PPBackup.reEnroll();
+        ppSync();
+        return await ppSend(o,mode);
+      }catch(e2){}
+    }
+    delete o.__reenroll;
     const m=(e&&e.message)||String(e);
     const kind=PPBackup.classify(e),retry=PPBackup.autoRetry(kind);
     const tries=((o.ppq&&o.ppq.tries)||0)+1;
@@ -1931,6 +1944,17 @@ async function ppQueueRun(force){
       if(!ok&&o.ppq&&o.ppq.kind==='offline')break;
     }
   }finally{ppRunning=false}
+}
+let ppHbTimer=0;
+function ppHeartbeat(){
+  clearInterval(ppHbTimer);
+  if(!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()))return;
+  const beat=()=>{
+    if(document.visibilityState!=='visible')return;   // 后台不发，省电
+    PPBackup.heartbeat(true).catch(()=>{});            // 失败不吭声，下一拍再说
+  };
+  beat();
+  ppHbTimer=setInterval(beat,15000);                   // 官方端也是 15 秒
 }
 let ppTimer=0;
 function ppQueueTick(){
@@ -2147,6 +2171,7 @@ function ppSync(){
     :'把录像传到同一 WiFi 下的 PackingProof 电脑端';
   const up=document.getElementById('row-ppunpair');if(up)up.style.display=(on&&PPBackup.isPaired())?'':'none';
   ppHome();
+  if(typeof ppHeartbeat==='function')ppHeartbeat();
 }
 // 首页那条状态：开关没开就整条不出现，首页跟没这功能时一模一样
 function ppHomeSoon(){setTimeout(()=>{try{ppHome()}catch(e){}},0)}
@@ -2390,8 +2415,9 @@ window.addEventListener('beforeunload',e=>{if(cur){e.preventDefault();e.returnVa
   initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();ppSync();
   // 启动时先试一次，再按各自的退避时间排下一轮
   ppQueueRun(true).then(ppQueueTick);
+  ppHeartbeat();
   document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible')ppQueueRun(true).then(ppQueueTick);
+    if(document.visibilityState==='visible'){ppQueueRun(true).then(ppQueueTick);ppHeartbeat()}
   });
   wmTimer=setInterval(()=>{if(document.getElementById('p-rec').classList.contains('on'))updWM()},500);
   if(!window.MediaRecorder)toast('此浏览器不支持录像，只能记录单据和照片',5000);

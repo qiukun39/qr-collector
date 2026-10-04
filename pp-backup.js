@@ -261,6 +261,15 @@
     return await res.json();
   }
 
+  /**
+   * 凭据失效后重新注册。沿用已保存的地址和 deviceId，电脑端那边只需再点一次
+   * 「允许」——不必让人重新扫码。官方 App 就是这么做的，所以它「打开就自动连上」
+   */
+  async function reEnroll() {
+    if (!cfg.host) throw new Error('还没配过电脑端');
+    return await enroll(cfg.host, cfg.deviceName, cfg.accessKey);
+  }
+
   async function enroll(host, deviceName, accessKey) {
     var parsed = parseConnect(host);
     var node = await probe(parsed.host);
@@ -352,7 +361,10 @@
     while (offset < blob.size) {
       var end = Math.min(offset + chunkSize, blob.size);
       var buf = await blob.slice(offset, end).arrayBuffer();
-      var r = await request('/api/mobile-backup/uploads/' + uploadId, {
+      // 路径必须是 .../uploads/<id>/chunks（WebServer.cs 的
+      // IsMobileBackupUploadPath(path,"/chunks")）。写成 .../uploads/<id> 会落到
+      // 路由表的 default 分支，返回 {"error":"Not Found"}——就是那句「备份失败 Not Found」
+      var r = await request('/api/mobile-backup/uploads/' + uploadId + '/chunks', {
         method: 'PUT',
         body: buf,
         headers: {
@@ -401,6 +413,33 @@
       }
     });
     return complete;
+  }
+
+  /* ---------------- 心跳 ---------------- */
+
+  /**
+   * 告诉电脑端「这台手机还在」。官方端每 15 秒发一次，不发的话电脑上
+   * 那台设备就显示成离线，看着像掉线了。这个接口不需要签名。
+   */
+  async function heartbeat(connected) {
+    if (!cfg.host || !cfg.deviceId) return null;
+    return await request('/api/connections/heartbeat', {
+      method: 'POST',
+      signed: false,
+      body: {
+        clientId: cfg.deviceId,
+        clientType: 'mobile-app',
+        displayName: cfg.deviceName || '',
+        connected: connected !== false,
+        nodeId: cfg.deviceId,
+        deviceType: 'mobile',
+        platform: 'android',
+        orderReceiverPort: 5280,
+        capabilities: ['recording'],
+        appVersion: PROTO.clientVersion,
+        appBuildNumber: PROTO.clientBuildNumber
+      }
+    });
   }
 
   /* ---------------- 失败分类 ---------------- */
@@ -460,6 +499,8 @@
       cfg.host = ''; cfg.credential = ''; cfg.nodeName = ''; cfg.accessKey = '';
       save(cfg);
     },
+    heartbeat: heartbeat,
+    reEnroll: reEnroll,
     classify: classify,
     autoRetry: autoRetry,
     kindText: function (k) { return KIND_TEXT[k] || ''; },

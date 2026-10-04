@@ -1,7 +1,7 @@
 // 把仓库根目录的网页资源拷进 www/，避免两份代码各改各的
 const fs=require('fs'),path=require('path');
 const SRC=path.resolve(__dirname,'..'), DST=path.join(__dirname,'www');
-const FILES=['index.html','sw.js','manifest.webmanifest','icon.svg','control-cards.pdf'];
+const FILES=['index.html','pp-backup.js','sw.js','manifest.webmanifest','icon.svg','control-cards.pdf'];
 const DIRS=['vendor'];
 fs.rmSync(DST,{recursive:true,force:true});
 fs.mkdirSync(DST,{recursive:true});

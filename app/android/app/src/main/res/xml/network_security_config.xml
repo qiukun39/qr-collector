@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  局域网备份要访问用户自己填的 http://192.168.x.x 这类地址，安卓 9 起默认禁止明文 HTTP。
+
+  注意：这里不能只放行内网网段 —— 安卓的 <domain> 匹配的是主机名字符串，
+  不支持 CIDR / IP 范围，写 192.168.0.0 只会匹配这一个地址。
+  电脑端地址由用户自己填，事先不可能枚举，所以只能整体放行明文。
+
+  实际影响可控：App 只加载打进包里的本地资源，以及用户在设置里亲手填的那一个局域网地址。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

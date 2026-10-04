@@ -3,7 +3,7 @@
   "appName": "打包留证",
   "webDir": "www",
   "android": {
-    "allowMixedContent": false,
+    "allowMixedContent": true,
     "captureInput": true,
     "webContentsDebuggingEnabled": true
   },

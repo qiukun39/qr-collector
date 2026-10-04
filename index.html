@@ -524,6 +524,22 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="hint" id="qtext">统计中…</div>
       <div class="hint" id="persist" style="margin-top:5px"></div>
     </div>
+    <div class="grp">备份到电脑（PackingProof）</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">启用局域网备份<small id="pp-sub">把录像传到同一 WiFi 下的 PackingProof 电脑端</small></span>
+        <label class="sw"><input type="checkbox" id="o-ppon"><i></i></label></div>
+      <div class="rowi pp-cfg" style="display:none"><span class="lab">电脑端地址<small>电脑端二维码下方那个 http:// 地址</small></span></div>
+      <div class="rowi pp-cfg" style="display:none"><input type="text" class="mono" id="o-pphost"
+        placeholder="http://192.168.1.10:8080" autocapitalize="off" autocorrect="off" spellcheck="false"
+        style="width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px;background:var(--sub)"></div>
+      <div class="rowi pp-cfg" style="display:none"><span class="lab">本机显示名<small>电脑端列表里显示成这个名字</small></span>
+        <input type="text" class="mono" id="o-ppname" placeholder="打包台1" autocapitalize="off" spellcheck="false"></div>
+      <div class="rowi pp-cfg" id="row-pppair" style="display:none"><span class="lab" style="color:var(--blue)">开始配对<small>点完请到电脑端点「允许」</small></span><span class="chev">›</span></div>
+      <div class="rowi pp-cfg" style="display:none"><span class="lab">录完自动备份<small>停止录像后自动上传，失败可在单据里重试</small></span>
+        <label class="sw"><input type="checkbox" id="o-ppauto"><i></i></label></div>
+      <div class="rowi pp-cfg" id="row-ppunpair" style="display:none"><span class="lab" style="color:var(--red)">解除配对</span><span class="chev">›</span></div>
+    </div>
+
     <div class="grp">导出</div>
     <div class="list">
       <div class="rowi" id="row-csv"><span class="lab">导出 CSV 清单<small>单号 + 序列号 + 时间，Excel 直接开</small></span><span class="chev">›</span></div>
@@ -613,6 +629,8 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 </div>
 <div id="toast"></div>
 
+<!-- 局域网备份到 PackingProof 电脑端。整个功能都在这个文件里，删掉这一行即可停用 -->
+<script src="pp-backup.js"></script>
 <script>
 /* ===================== 配置 ===================== */
 const K={rul:'pk.rules',opt:'pk.opts',bk:'pk.lastbackup'};
@@ -1333,6 +1351,9 @@ async function stopOrder(silent){
   await DB.put('orders',o);orders.unshift(o);
   hideBig();closeSheet();
   updUI();renderRecItems();renderOrders();updQuota();
+  if(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()&&PPBackup.config.auto&&o.vid){
+    setTimeout(()=>ppSend(o,true),400);       // 不挡住停止流程，后台传
+  }
   if(!silent){sfx('stop');
     const n=o.items.filter(i=>!i.snap).length;
     const scan=(o.type||'out')==='scan';
@@ -1570,6 +1591,7 @@ function renderOrders(){
            ${o.type==='scan'?'<span class="mini t">📋 盘点</span>'
              :(o.vid?'<span class="mini b">📹 '+kb(o.vsize)+'</span>':'<span class="mini r">无视频</span>')}
            ${o.lm?'<span class="mini g">水印</span>':''}
+           ${o.pp?'<span class="mini b">💻 已备份</span>':''}
            ${n?'<span class="mini g">'+n+' 件</span>':''}
            ${ph?'<span class="mini o">'+ph+' 图</span>':''}</span>
          <span class="chev">›</span></li>`}).join('')}</ul>`).join('');
@@ -1656,6 +1678,8 @@ async function openOrder(o){
       </div>
       <div class="row" style="margin-top:8px">
         ${o.type==='scan'?'':`<button class="btn sm pri" id="oburn" ${o.vid?'':'disabled'}>补烧水印并导出</button>`}
+        ${(o.type!=='scan'&&window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired())
+          ?`<button class="btn sm" id="opp" ${o.vid?'':'disabled'}>${o.pp?'已备份 · 重传':'备份到电脑'}</button>`:''}
         <button class="btn sm bad" id="odel">删除本单</button>
       </div>
       <div class="pbar" id="burnbar" style="display:none"><i></i></div>
@@ -1677,6 +1701,7 @@ async function openOrder(o){
   const ov=document.getElementById('ovideo');if(ov)ov.onclick=async()=>{const v=await DB.get('videos',o.id);
     if(v&&v.blob)await saveFile(v.blob,videoName(o)+extOf(v.blob.type),o.no+' 录像')};
   const ob=document.getElementById('oburn');if(ob)ob.onclick=()=>burn(o);
+  const opp=document.getElementById('opp');if(opp)opp.onclick=()=>ppSend(o);
   document.getElementById('odel').onclick=async()=>{
     if(!await ask('删除这单？','单号 '+o.no+'\n视频、照片和序列号会一并删除，无法恢复。',
       '确认删除','保留','🗑️'))return;
@@ -1813,6 +1838,29 @@ async function saveAll(o){
     '视频和照片：相册里的「打包留证」分组\n清单 CSV：'+(csvPath||'下载 / 打包留证'),
     '知道了','复制路径',fail?'⚠️':'✅').then(async x=>{if(!x)await copy(lastPath||csvPath)});
 }
+// 把一单传到 PackingProof 电脑端。失败不影响本地数据，随时可在单据里重试。
+async function ppSend(o,silent){
+  if(!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()))return false;
+  if((o.type||'out')==='scan')return false;      // 盘点没有录像，电脑端也不收
+  const v=await DB.get('videos',o.id);
+  if(!v||!v.blob){if(!silent)toast('这一单没有视频');return false}
+  try{
+    toast('正在备份到电脑…',60000);
+    const r=await PPBackup.upload(o,v.blob,videoName(o)+extOf(v.blob.type),
+      (a,b)=>toast('备份到电脑 '+Math.round(a/b*100)+'%（'+kb(b)+'）',60000));
+    o.pp={at:Date.now(),recordId:(r&&r.recordId)||null,status:(r&&r.status)||'done'};
+    await DB.put('orders',o);renderOrders();
+    toast('已备份到电脑'+((r&&r.alreadyCompleted)?'（电脑端已有同一个文件）':''),3000);
+    say('已备份到电脑');
+    return true;
+  }catch(e){
+    const m=(e&&e.message)||String(e);
+    if(silent)toast('自动备份失败：'+m,4000);
+    else await ask('备份失败',m+'\n\n本地数据没有受影响，可以稍后在这一单里重试。','知道了','复制错误','⚠️')
+      .then(async ok=>{if(!ok)await copy(m)});
+    return false;
+  }
+}
 async function burn(o){
   const r0=await DB.get('videos',o.id);
   if(!r0||!r0.blob){toast('没有视频');return}
@@ -1935,6 +1983,52 @@ document.getElementById('bprint').onclick=()=>window.print();
 document.getElementById('st-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('row-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('st-engine').onclick=()=>enterRec(recType);
+function ppSync(){
+  const on=!!(window.PPBackup&&PPBackup.isOn());
+  const e=document.getElementById('o-ppon');if(e)e.checked=on;
+  document.querySelectorAll('.rowi.pp-cfg').forEach(r=>r.style.display=on?'':'none');
+  if(!window.PPBackup)return;
+  const c=PPBackup.config;
+  const h=document.getElementById('o-pphost');if(h)h.value=c.host||'';
+  const n=document.getElementById('o-ppname');if(n)n.value=c.deviceName||'';
+  const a=document.getElementById('o-ppauto');if(a)a.checked=!!c.auto;
+  const sub=document.getElementById('pp-sub');
+  if(sub)sub.textContent=PPBackup.isPaired()
+    ?('已配对'+(c.nodeName?('：'+c.nodeName):'')+'　'+c.host)
+    :'把录像传到同一 WiFi 下的 PackingProof 电脑端';
+  const up=document.getElementById('row-ppunpair');if(up)up.style.display=(on&&PPBackup.isPaired())?'':'none';
+}
+document.getElementById('o-ppon').onchange=e=>{
+  if(!window.PPBackup){toast('备份模块没加载');e.target.checked=false;return}
+  PPBackup.set({on:e.target.checked});ppSync();
+  if(e.target.checked&&!NATIVE)
+    toast('网页版用不了局域网备份（浏览器禁止 https 页面访问 http 地址），请用 App 版',5000);
+};
+['pphost','ppname'].forEach(k=>{
+  const e=document.getElementById('o-'+k);
+  if(e)e.oninput=ev=>{if(window.PPBackup)PPBackup.set(k==='pphost'?{host:ev.target.value}:{deviceName:ev.target.value})};
+});
+document.getElementById('o-ppauto').onchange=e=>{if(window.PPBackup)PPBackup.set({auto:e.target.checked})};
+document.getElementById('row-pppair').onclick=async()=>{
+  if(!window.PPBackup)return;
+  const host=(document.getElementById('o-pphost').value||'').trim();
+  if(!host){toast('先填电脑端地址');return}
+  try{
+    toast('正在连接电脑端…',30000);
+    const r=await PPBackup.enroll(host,document.getElementById('o-ppname').value);
+    ppSync();
+    await ask('配对成功','电脑端：'+((r.node&&(r.node.nodeName||r.node.name))||r.host)+
+      '\n本机名：'+r.deviceName+'\n\n以后在单据详情里点「备份到电脑」即可上传。','知道了','','💻');
+  }catch(e){
+    const m=(e&&e.message)||String(e);
+    await ask('配对失败',m,'知道了','复制错误','⚠️').then(async ok=>{if(!ok)await copy(m)});
+  }
+};
+document.getElementById('row-ppunpair').onclick=async()=>{
+  if(!window.PPBackup)return;
+  if(!await ask('解除配对？','解除后要重新配对才能继续备份。已经传上去的录像不受影响。','解除','取消','💻'))return;
+  PPBackup.unpair();ppSync();toast('已解除配对');
+};
 document.getElementById('row-ttstest').onclick=()=>{
   if(!opts.tts){toast('先打开语音播报');return}
   const tip=(opts.tiptext&&opts.tiptext.trim())?('。'+opts.tiptext.trim()):'';
@@ -2109,7 +2203,7 @@ window.addEventListener('beforeunload',e=>{if(cur){e.preventDefault();e.returnVa
 (async function(){
   try{await DB.open()}catch(e){toast('数据库打开失败：'+e.message,5000)}
   try{orders=(await DB.all('orders')).sort((a,b)=>b.t-a.t)}catch(e){orders=[]}
-  initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();
+  initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();ppSync();
   wmTimer=setInterval(()=>{if(document.getElementById('p-rec').classList.contains('on'))updWM()},500);
   if(!window.MediaRecorder)toast('此浏览器不支持录像，只能记录单据和照片',5000);
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});

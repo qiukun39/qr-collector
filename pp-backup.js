@@ -155,7 +155,9 @@
       // 那样会把真正的原因盖掉，排查时毫无线索
       var msg = (e && e.message) || String(e);
       if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
-        throw new Error('连不上电脑端，确认手机和电脑在同一个 WiFi、地址端口没写错、电脑端服务已启动');
+        var offline = new Error('连不上电脑端，确认手机和电脑在同一个 WiFi、地址端口没写错、电脑端服务已启动');
+        offline.offline = true;
+        throw offline;
       }
       throw new Error('请求发不出去：' + msg);
     }
@@ -401,6 +403,52 @@
     return complete;
   }
 
+  /* ---------------- 失败分类 ---------------- */
+
+  /**
+   * 把一次失败归类。照抄官方 LanBackupFailurePolicy.classifyHttp，
+   * 判据一致才不会出现「我们一直重试而电脑端早就明确拒绝」这种空转。
+   */
+  function classify(e) {
+    if (!e) return 'unknown';
+    if (e.offline) return 'offline';
+    var code = e.code || '';
+    var st = e.status || 0;
+    if (st === 401 || st === 403) return 'credential';
+    if (code === 'credential_missing' || code === 'enrollment_required' ||
+        code === 'device_token_invalid') return 'credential';
+    if (code === 'upload_not_found') return 'expired';
+    if (code === 'sha256_mismatch' || st === 422) return 'verify';
+    if (code === 'storage_unavailable') return 'storage';
+    if (code === 'invalid_content_range' || code === 'invalid_request' ||
+        code === 'invalid_json' || code === 'unsupported_format' ||
+        code === 'invalid_total_bytes' || code === 'backup_client_upgrade_required' ||
+        code === 'backup_protocol_upgrade_required' || st === 404 || st === 426) {
+      return 'incompatible';
+    }
+    if (st === 408) return 'offline';
+    if (st === 409 || st === 425 || st === 429 || (st >= 500 && st < 600) ||
+        code === 'offset_mismatch' || code === 'mobile_backup_failed') return 'temporary';
+    return 'unknown';
+  }
+
+  // 只有「等一会儿可能自己就好了」的才值得自动重试。
+  // 凭据失效、版本不兼容、校验失败这些重试一万次也一样，必须人来处理
+  function autoRetry(kind) {
+    return kind === 'offline' || kind === 'temporary' || kind === 'storage';
+  }
+
+  var KIND_TEXT = {
+    offline: '电脑端没开机或不在同一网络',
+    temporary: '电脑端忙，稍后自动重试',
+    storage: '电脑端存储盘不可用',
+    credential: '配对已失效，需要重新配对',
+    incompatible: '版本或协议不兼容，需要更新 App',
+    verify: '文件校验不通过',
+    expired: '电脑端的上传任务已过期，会重新上传',
+    unknown: ''
+  };
+
   /* ---------------- 对外接口 ---------------- */
 
   window.PPBackup = {
@@ -412,6 +460,9 @@
       cfg.host = ''; cfg.credential = ''; cfg.nodeName = ''; cfg.accessKey = '';
       save(cfg);
     },
+    classify: classify,
+    autoRetry: autoRetry,
+    kindText: function (k) { return KIND_TEXT[k] || ''; },
     probe: probe,
     parseConnect: parseConnect,
     enroll: enroll,

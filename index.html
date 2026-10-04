@@ -1369,7 +1369,7 @@ async function stopOrder(silent){
   hideBig();closeSheet();
   updUI();renderRecItems();renderOrders();updQuota();
   if(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()&&PPBackup.config.auto&&o.vid){
-    setTimeout(()=>ppSend(o,true),400);       // 不挡住停止流程，后台传
+    setTimeout(()=>ppSend(o,'auto'),400);     // 不挡住停止流程，后台传
   }
   if(!silent){sfx('stop');
     const n=o.items.filter(i=>!i.snap).length;
@@ -1583,6 +1583,7 @@ function filtered(){
   return orders.filter(o=>matchQ(o,q)&&(filt==='all'||(o.type||'out')===filt));
 }
 function renderOrders(){
+  ppHomeSoon();                       // 单据状态变了，首页那条的「待传 N 单」跟着变
   const q=document.getElementById('q').value.trim().toLowerCase();
   const all=orders.filter(o=>matchQ(o,q));
   document.querySelectorAll('.chip').forEach(c=>{
@@ -1608,7 +1609,9 @@ function renderOrders(){
            ${o.type==='scan'?'<span class="mini t">📋 盘点</span>'
              :(o.vid?'<span class="mini b">📹 '+kb(o.vsize)+'</span>':'<span class="mini r">无视频</span>')}
            ${o.lm?'<span class="mini g">水印</span>':''}
-           ${o.pp?'<span class="mini b">💻 已备份</span>':''}
+           ${o.pp?'<span class="mini b">💻 已备份</span>'
+             :(o.ppq?(o.ppq.next>0?'<span class="mini o">⏳ 待备份</span>'
+                                  :'<span class="mini r">⚠️ 备份失败</span>'):'')}
            ${n?'<span class="mini g">'+n+' 件</span>':''}
            ${ph?'<span class="mini o">'+ph+' 图</span>':''}</span>
          <span class="chev">›</span></li>`}).join('')}</ul>`).join('');
@@ -1696,7 +1699,8 @@ async function openOrder(o){
       <div class="row" style="margin-top:8px">
         ${o.type==='scan'?'':`<button class="btn sm pri" id="oburn" ${o.vid?'':'disabled'}>补烧水印并导出</button>`}
         ${(o.type!=='scan'&&window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired())
-          ?`<button class="btn sm" id="opp" ${o.vid?'':'disabled'}>${o.pp?'已备份 · 重传':'备份到电脑'}</button>`:''}
+          ?`<button class="btn sm" id="opp" ${o.vid?'':'disabled'}>${
+            o.pp?'已备份 · 重传':(o.ppq?'重试备份':'备份到电脑')}</button>`:''}
         <button class="btn sm bad" id="odel">删除本单</button>
       </div>
       <div class="pbar" id="burnbar" style="display:none"><i></i></div>
@@ -1856,27 +1860,85 @@ async function saveAll(o){
     '知道了','复制路径',fail?'⚠️':'✅').then(async x=>{if(!x)await copy(lastPath||csvPath)});
 }
 // 把一单传到 PackingProof 电脑端。失败不影响本地数据，随时可在单据里重试。
-async function ppSend(o,silent){
+// mode: 'ask' 手动点的，失败要弹框；'auto' 录完自动传；'quiet' 队列在后台重试
+async function ppSend(o,mode){
+  if(mode===true)mode='auto';                    // 兼容老调用
+  const quiet=(mode==='quiet'),silent=quiet||mode==='auto';
   if(!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()))return false;
   if((o.type||'out')==='scan')return false;      // 盘点没有录像，电脑端也不收
   const v=await DB.get('videos',o.id);
-  if(!v||!v.blob){if(!silent)toast('这一单没有视频');return false}
+  if(!v||!v.blob){
+    // 视频没了就别一直排队重试了，否则这一单永远卡在队列里
+    if(o.ppq){delete o.ppq;await DB.put('orders',o);renderOrders()}
+    if(!silent)toast('这一单没有视频');
+    return false;
+  }
   try{
-    toast('正在备份到电脑…',60000);
+    if(!quiet)toast('正在备份到电脑…',60000);
     const r=await PPBackup.upload(o,v.blob,videoName(o)+extOf(v.blob.type),
-      (a,b)=>toast('备份到电脑 '+Math.round(a/b*100)+'%（'+kb(b)+'）',60000));
+      (a,b)=>{if(!quiet)toast('备份到电脑 '+Math.round(a/b*100)+'%（'+kb(b)+'）',60000)});
     o.pp={at:Date.now(),recordId:(r&&r.recordId)||null,status:(r&&r.status)||'done'};
+    delete o.ppq;
     await DB.put('orders',o);renderOrders();
-    toast('已备份到电脑'+((r&&r.alreadyCompleted)?'（电脑端已有同一个文件）':''),3000);
-    say('已备份到电脑');
+    if(!quiet){
+      toast('已备份到电脑'+((r&&r.alreadyCompleted)?'（电脑端已有同一个文件）':''),3000);
+      say('已备份到电脑');
+    }
     return true;
   }catch(e){
     const m=(e&&e.message)||String(e);
-    if(silent)toast('自动备份失败：'+m,4000);
-    else await ask('备份失败',m+'\n\n本地数据没有受影响，可以稍后在这一单里重试。','知道了','复制错误','⚠️')
-      .then(async ok=>{if(!ok)await copy(m)});
+    const kind=PPBackup.classify(e),retry=PPBackup.autoRetry(kind);
+    const tries=((o.ppq&&o.ppq.tries)||0)+1;
+    o.ppq={kind:kind,msg:m,tries:tries,at:Date.now(),
+           next:retry?(Date.now()+ppBackoff(tries)):0};
+    await DB.put('orders',o);renderOrders();
+    if(!silent){
+      await ask('备份失败',m+'\n\n'+(retry
+        ?'这一单已记在待备份里，电脑端恢复后会自动重传。'
+        :'本地数据没有受影响，处理完上面的问题再重试。'),'知道了','复制错误','⚠️')
+        .then(async ok=>{if(!ok)await copy(m)});
+    }else if(!quiet){
+      toast(retry?('电脑端连不上，已记下稍后自动重传'):('自动备份失败：'+m),4000);
+    }
     return false;
   }
+}
+
+/* ============ 待备份队列 ============
+   电脑没开机、中途重启、WiFi 断一下，录像不能就这么丢在手机里不管。
+   失败的单子记在 o.ppq 上，退避重试；页面回到前台时先试一次。
+   注：网页/APK 都只能在 App 活着时重试，做不到官方端 WorkManager 那种
+   退出后台也继续传，所以把「回前台就试」做得积极一点。 */
+function ppBackoff(tries){                        // 15s 起步，翻倍，封顶 10 分钟
+  return Math.min(15000*Math.pow(2,Math.max(0,tries-1)),600000);
+}
+function ppPending(list){                         // 等着重传的单子
+  return (list||orders||[]).filter(o=>o.ppq&&o.ppq.next>0&&!o.pp);
+}
+let ppRunning=false;
+async function ppQueueRun(force){
+  if(ppRunning)return;
+  if(!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()))return;
+  const now=Date.now();
+  const due=ppPending().filter(o=>force||o.ppq.next<=now)
+                       .sort((a,b)=>a.t-b.t);     // 先传早的，顺序和录的顺序一致
+  if(!due.length)return;
+  ppRunning=true;
+  try{
+    for(const o of due){
+      const ok=await ppSend(o,'quiet');
+      // 一单连不上，后面的多半也连不上；停下来等下一轮，别把电量耗在空转上
+      if(!ok&&o.ppq&&o.ppq.kind==='offline')break;
+    }
+  }finally{ppRunning=false}
+}
+let ppTimer=0;
+function ppQueueTick(){
+  clearTimeout(ppTimer);
+  const due=ppPending();
+  if(!due.length)return;
+  const wait=Math.max(5000,Math.min(...due.map(o=>o.ppq.next))-Date.now());
+  ppTimer=setTimeout(async()=>{await ppQueueRun();ppQueueTick()},Math.min(wait,600000));
 }
 async function burn(o){
   const r0=await DB.get('videos',o.id);
@@ -2087,6 +2149,7 @@ function ppSync(){
   ppHome();
 }
 // 首页那条状态：开关没开就整条不出现，首页跟没这功能时一模一样
+function ppHomeSoon(){setTimeout(()=>{try{ppHome()}catch(e){}},0)}
 function ppHome(){
   const row=document.getElementById('st-pp'),t=document.getElementById('st-pp-t');
   if(!row||!t)return;
@@ -2095,9 +2158,13 @@ function ppHome(){
   if(!on)return;
   const c=PPBackup.config,paired=PPBackup.isPaired();
   row.classList.toggle('ok',paired);
+  const wait=(typeof ppPending==='function')?ppPending().length:0;
   t.textContent=paired
-    ?('电脑备份 · '+(c.nodeName||c.host.replace(/^https?:\/\//,'')))
+    ?('电脑备份 · '+(c.nodeName||c.host.replace(/^https?:\/\//,''))
+      +(wait?('　待传 '+wait+' 单'):''))
     :'电脑备份 · 未配对，点这里连接电脑';
+  // 有东西没传出去就别显示成一切正常的绿色
+  if(wait)row.classList.remove('ok');
 }
 document.getElementById('o-ppon').onchange=e=>{
   if(!window.PPBackup){toast('备份模块没加载');e.target.checked=false;return}
@@ -2116,6 +2183,7 @@ async function ppDoPair(connectText){
     toast('已发出配对请求，去电脑上点「允许」…',120000);
     const r=await PPBackup.enroll(connectText,document.getElementById('o-ppname').value);
     ppSync();
+    ppQueueRun(true).then(ppQueueTick);     // 配对前攒下的，这就开始传
     await ask('配对成功','电脑端：'+((r.node&&(r.node.nodeName||r.node.name))||r.host)+
       '\n地址：'+r.host+'\n本机名：'+r.deviceName+
       '\n\n以后在单据详情里点「备份到电脑」即可上传。','知道了','','💻');
@@ -2320,6 +2388,11 @@ window.addEventListener('beforeunload',e=>{if(cur){e.preventDefault();e.returnVa
   try{await DB.open()}catch(e){toast('数据库打开失败：'+e.message,5000)}
   try{orders=(await DB.all('orders')).sort((a,b)=>b.t-a.t)}catch(e){orders=[]}
   initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();ppSync();
+  // 启动时先试一次，再按各自的退避时间排下一轮
+  ppQueueRun(true).then(ppQueueTick);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible')ppQueueRun(true).then(ppQueueTick);
+  });
   wmTimer=setInterval(()=>{if(document.getElementById('p-rec').classList.contains('on'))updWM()},500);
   if(!window.MediaRecorder)toast('此浏览器不支持录像，只能记录单据和照片',5000);
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});

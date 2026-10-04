@@ -528,13 +528,14 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     <div class="list">
       <div class="rowi"><span class="lab">启用局域网备份<small id="pp-sub">把录像传到同一 WiFi 下的 PackingProof 电脑端</small></span>
         <label class="sw"><input type="checkbox" id="o-ppon"><i></i></label></div>
-      <div class="rowi pp-cfg" style="display:none"><span class="lab">电脑端地址<small>电脑端二维码下方那个 http:// 地址</small></span></div>
-      <div class="rowi pp-cfg" style="display:none"><input type="text" class="mono" id="o-pphost"
-        placeholder="http://192.168.1.10:8080" autocapitalize="off" autocorrect="off" spellcheck="false"
-        style="width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px;background:var(--sub)"></div>
-      <div class="rowi pp-cfg" style="display:none"><span class="lab">本机显示名<small>电脑端列表里显示成这个名字</small></span>
+      <div class="rowi pp-cfg" style="display:none"><span class="lab">本机显示名<small>电脑端列表里显示成这个名字，配对前先填</small></span>
         <input type="text" class="mono" id="o-ppname" placeholder="打包台1" autocapitalize="off" spellcheck="false"></div>
-      <div class="rowi pp-cfg" id="row-pppair" style="display:none"><span class="lab" style="color:var(--blue)">开始配对<small>点完请到电脑端点「允许」</small></span><span class="chev">›</span></div>
+      <div class="rowi pp-cfg" id="row-ppscan" style="display:none"><span class="lab" style="color:var(--blue)">扫码配对<small>电脑端「设置 → 局域网与网页 → 显示二维码」，扫它</small></span><span class="chev">›</span></div>
+      <div class="rowi pp-cfg" style="display:none"><span class="lab" style="color:var(--dim)">或者手填地址<small>粘贴电脑端「复制网址」的内容；只填 IP 按默认端口 5280 算</small></span></div>
+      <div class="rowi pp-cfg" style="display:none"><input type="text" class="mono" id="o-pphost"
+        placeholder="http://192.168.31.15:5280" autocapitalize="off" autocorrect="off" spellcheck="false"
+        style="width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px;background:var(--sub)"></div>
+      <div class="rowi pp-cfg" id="row-pppair" style="display:none"><span class="lab">用上面的地址配对</span><span class="chev">›</span></div>
       <div class="rowi pp-cfg" style="display:none"><span class="lab">录完自动备份<small>停止录像后自动上传，失败可在单据里重试</small></span>
         <label class="sw"><input type="checkbox" id="o-ppauto"><i></i></label></div>
       <div class="rowi pp-cfg" id="row-ppunpair" style="display:none"><span class="lab" style="color:var(--red)">解除配对</span><span class="chev">›</span></div>
@@ -628,6 +629,17 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
   </div>
 </div>
 <div id="toast"></div>
+
+<div class="modal" id="scan1" style="background:#000;z-index:210">
+  <div class="topbar"><button class="iconbtn" id="s1close">‹</button>
+    <h2 id="s1title" style="color:#fff">扫描二维码</h2><span style="width:44px"></span></div>
+  <div style="flex:1 1 auto;position:relative;overflow:hidden">
+    <video id="s1cam" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
+    <div style="position:absolute;left:12%;top:28%;width:76%;aspect-ratio:1;border:2px solid var(--green);border-radius:18px"></div>
+    <div style="position:absolute;left:0;right:0;bottom:24px;text-align:center;color:#fff;
+      text-shadow:0 1px 4px #000;font-size:14px" id="s1tip">把电脑端的二维码放进框里</div>
+  </div>
+</div>
 
 <!-- 局域网备份到 PackingProof 电脑端。整个功能都在这个文件里，删掉这一行即可停用 -->
 <script src="pp-backup.js"></script>
@@ -1947,6 +1959,64 @@ async function renderCards(){
     '<div class="hint" style="grid-column:1/-1;color:var(--red)">二维码生成失败：'+esc(e.message)+'</div>')}
 }
 
+// 一次性扫码：打开摄像头，扫到第一个码就关掉并返回内容。
+// 不动录像那套状态，用完即走。
+async function scanOnce(title,tip){
+  let eng;
+  try{eng=await ensureEngine()}catch(e){toast('扫码引擎不可用：'+e.message,3000);return null}
+  const box=document.getElementById('scan1'),vid=document.getElementById('s1cam');
+  document.getElementById('s1title').textContent=title||'扫描二维码';
+  document.getElementById('s1tip').textContent=tip||'把二维码放进框里';
+  // 安卓同一时间只能开一路摄像头，待机流没放就会抢不到
+  if(standby||stream)await quitStandby();
+  let st=null;
+  try{
+    st=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+  }catch(e){toast('摄像头打开失败：'+e.name,3500);return null}
+  vid.srcObject=st;await vid.play().catch(()=>{});
+  box.classList.add('on');
+  const stop=()=>{box.classList.remove('on');
+    try{st.getTracks().forEach(t=>t.stop())}catch(e){}vid.srcObject=null};
+  return await new Promise(res=>{
+    let done=false;
+    const finish=v=>{if(done)return;done=true;stop();res(v)};
+    document.getElementById('s1close').onclick=()=>finish(null);
+    let c,cx2;
+    (async function loop(){
+      while(!done){
+        try{
+          if(vid.readyState>=2){
+            let txt=null;
+            if(eng==='native'){
+              const r=await detector.detect(vid);
+              if(r&&r.length)txt=r[0].rawValue;
+            }else{
+              c=c||document.createElement('canvas');
+              const w=vid.videoWidth,h=vid.videoHeight;
+              if(w&&h){
+                const k=Math.min(1,900/Math.max(w,h));
+                c.width=Math.round(w*k);c.height=Math.round(h*k);
+                cx2=cx2||c.getContext('2d',{willReadFrequently:true});
+                cx2.drawImage(vid,0,0,c.width,c.height);
+                const d=cx2.getImageData(0,0,c.width,c.height),lum=new Uint8ClampedArray(c.width*c.height);
+                for(let i=0,j=0;i<d.data.length;i+=4,j++)lum[j]=(d.data[i]*306+d.data[i+1]*601+d.data[i+2]*117)>>10;
+                try{const bmp=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(
+                  new ZXing.RGBLuminanceSource(lum,c.width,c.height)));
+                  const r=zxHints?zxing.decode(bmp,zxHints):zxing.decode(bmp);
+                  if(r)txt=r.getText();}catch(e){}
+                zxing.reset&&zxing.reset();
+              }
+            }
+            if(txt){sfx('item');finish(txt);return}
+          }
+        }catch(e){}
+        await new Promise(r=>setTimeout(r,120));
+      }
+    })();
+  });
+}
+
 /* ===================== 路由 / 事件 ===================== */
 function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+id));
   window.scrollTo(0,0);const m=document.querySelector('.page.on');if(m)m.scrollTop=0}
@@ -2009,20 +2079,35 @@ document.getElementById('o-ppon').onchange=e=>{
   if(e)e.oninput=ev=>{if(window.PPBackup)PPBackup.set(k==='pphost'?{host:ev.target.value}:{deviceName:ev.target.value})};
 });
 document.getElementById('o-ppauto').onchange=e=>{if(window.PPBackup)PPBackup.set({auto:e.target.checked})};
-document.getElementById('row-pppair').onclick=async()=>{
+async function ppDoPair(connectText){
   if(!window.PPBackup)return;
-  const host=(document.getElementById('o-pphost').value||'').trim();
-  if(!host){toast('先填电脑端地址');return}
   try{
-    toast('正在连接电脑端…',30000);
-    const r=await PPBackup.enroll(host,document.getElementById('o-ppname').value);
+    toast('已发出配对请求，去电脑上点「允许」…',120000);
+    const r=await PPBackup.enroll(connectText,document.getElementById('o-ppname').value);
     ppSync();
     await ask('配对成功','电脑端：'+((r.node&&(r.node.nodeName||r.node.name))||r.host)+
-      '\n本机名：'+r.deviceName+'\n\n以后在单据详情里点「备份到电脑」即可上传。','知道了','','💻');
+      '\n地址：'+r.host+'\n本机名：'+r.deviceName+
+      '\n\n以后在单据详情里点「备份到电脑」即可上传。','知道了','','💻');
   }catch(e){
     const m=(e&&e.message)||String(e);
     await ask('配对失败',m,'知道了','复制错误','⚠️').then(async ok=>{if(!ok)await copy(m)});
   }
+}
+document.getElementById('row-ppscan').onclick=async()=>{
+  if(!window.PPBackup)return;
+  const txt=await scanOnce('扫码连接电脑端','打开电脑端「设置 → 局域网与网页 → 显示二维码」');
+  if(!txt)return;
+  let info;
+  try{info=PPBackup.parseConnect(txt)}
+  catch(e){await ask('这个码不对','扫到的内容：\n'+txt.slice(0,80)+'\n\n需要的是电脑端「显示二维码」里那个码。','知道了','','⚠️');return}
+  document.getElementById('o-pphost').value=info.host;
+  PPBackup.set({host:info.host,accessKey:info.accessKey||''});
+  await ppDoPair(txt);
+};
+document.getElementById('row-pppair').onclick=async()=>{
+  const host=(document.getElementById('o-pphost').value||'').trim();
+  if(!host){toast('先填电脑端地址，或者用上面的「扫码配对」');return}
+  await ppDoPair(host);
 };
 document.getElementById('row-ppunpair').onclick=async()=>{
   if(!window.PPBackup)return;

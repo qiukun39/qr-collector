@@ -48,7 +48,8 @@
     credential: '',
     deviceName: '',
     auto: false,      // 停止录像后自动上传
-    nodeName: ''
+    nodeName: '',
+    accessKey: ''     // 电脑端二维码里的 ?key=，看录像网页时要用；备份接口本身不需要
   }, load());
 
   /* ---------------- 基础工具 ---------------- */
@@ -129,6 +130,7 @@
       var contentHash = await sha256Hex(buf);
       var ts = Math.floor(Date.now() / 1000);
       var nonce = hex(crypto.getRandomValues(new Uint8Array(16)));
+      if (cfg.accessKey) headers['X-EPM-Access-Key'] = cfg.accessKey;
       headers['X-EPM-Device-Id'] = cfg.deviceId;
       headers['X-EPM-Device-Kind'] = 'mobile';
       // HTTP 头不能带非 ASCII（中文设备名会让 fetch 直接抛 TypeError），统一百分号编码
@@ -190,22 +192,66 @@
 
   /* ---------------- 配对 ---------------- */
 
+  /**
+   * 解析电脑端给的连接信息。二维码和「复制网址」给的都是这种：
+   *   http://192.168.31.15:5280/?key=00ced425ff0ab079d0526866c99ee55c
+   * 也容忍用户只填了 http://ip:port。
+   */
+  var DEFAULT_PORT = 5280;                        // 电脑端默认监听端口
+  function parseConnect(text) {
+    var raw = String(text || '').trim();
+    if (!raw) throw new Error('内容是空的');
+    if (!/^https?:\/\//i.test(raw)) {
+      // 没写 http:// 的，只认「IP(:端口)」「主机名:端口」「xxx.local」这三种。
+      // 放宽成任意 [\w.-]+ 会把商品码（像 24XXXX-000-000 这种料号）也当成主机名，
+      // 接着就是一次莫名其妙的「连不上」，排查方向全错
+      var ok = /^\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?\/?$/.test(raw)   // 192.168.31.15 / :5280
+            || /^[A-Za-z][\w-]*(\.[\w-]+)*:\d{1,5}\/?$/.test(raw)   // pc:5280
+            || /^[A-Za-z][\w-]*\.local\/?$/i.test(raw);              // pc.local
+      if (!ok) throw new Error('这不像电脑端的地址。要么写成 192.168.1.10:' + DEFAULT_PORT +
+        '，要么直接用「扫码配对」扫电脑端的二维码');
+      raw = 'http://' + raw;
+    }
+    var u;
+    try { u = new URL(raw); } catch (e) { throw new Error('地址格式不对：' + raw.slice(0, 60)); }
+    // 没写端口就按 PackingProof 的默认端口补上。少了这一步会去连 80 端口，
+    // 电脑端根本不在那儿听，表现就是「怎么填都连不上」
+    var host = u.hostname + (u.port ? (':' + u.port) : ':' + DEFAULT_PORT);
+    return {
+      host: u.protocol + '//' + host,              // 去掉路径和查询串，只留 http://ip:port
+      accessKey: u.searchParams.get('key') || ''
+    };
+  }
+
   async function probe(host) {
     var base = String(host || '').trim().replace(/\/+$/, '');
     if (!/^https?:\/\//.test(base)) throw new Error('地址要以 http:// 开头，例如 http://192.168.1.10:8080');
     var res;
+    var ac = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = ac ? setTimeout(function () { ac.abort(); }, 6000) : null;
     try {
-      res = await fetch(base + '/api/node-info');
+      res = await fetch(base + '/api/node-info', ac ? { signal: ac.signal } : undefined);
     } catch (e) {
-      throw new Error('连不上 ' + base + '，确认同一个 WiFi、地址和端口没写错');
+      var aborted = (e && e.name === 'AbortError');
+      throw new Error('连不上 ' + base + (aborted ? '（6 秒没响应）' : '') +
+        '\n\n挨个核对：\n' +
+        '1. 手机和电脑连的是同一个 WiFi（手机别开流量/VPN）\n' +
+        '2. 电脑端「设置 → 局域网与网页」里服务是开着的\n' +
+        '3. 地址用电脑端显示的那个，端口默认 ' + DEFAULT_PORT + '\n' +
+        '4. 电脑的防火墙放行了这个端口\n\n' +
+        '最省事的办法：用「扫码配对」直接扫电脑端那个二维码');
+    } finally {
+      if (timer) clearTimeout(timer);
     }
     if (!res.ok) throw new Error('对方不像 PackingProof 电脑端（/api/node-info 返回 ' + res.status + '）');
     return await res.json();
   }
 
-  async function enroll(host, deviceName) {
-    var node = await probe(host);
-    cfg.host = String(host).trim().replace(/\/+$/, '');
+  async function enroll(host, deviceName, accessKey) {
+    var parsed = parseConnect(host);
+    var node = await probe(parsed.host);
+    cfg.host = parsed.host;
+    if (accessKey || parsed.accessKey) cfg.accessKey = accessKey || parsed.accessKey;
     cfg.nodeName = (node && (node.nodeName || node.name || node.hostName)) || '';
 
     var deviceId = cfg.deviceId || ('qrc-' + hex(crypto.getRandomValues(new Uint8Array(8))));
@@ -328,10 +374,11 @@
     isPaired: function () { return !!(cfg.host && cfg.credential); },
     set: function (patch) { Object.assign(cfg, patch || {}); save(cfg); return cfg; },
     unpair: function () {
-      cfg.host = ''; cfg.credential = ''; cfg.nodeName = '';
+      cfg.host = ''; cfg.credential = ''; cfg.nodeName = ''; cfg.accessKey = '';
       save(cfg);
     },
     probe: probe,
+    parseConnect: parseConnect,
     enroll: enroll,
     capabilities: capabilities,
     upload: upload,

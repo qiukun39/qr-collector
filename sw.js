@@ -1,5 +1,5 @@
 /* 离线缓存：stale-while-revalidate，改版只需 bump VER */
-const VER = 'pk-v21';
+const VER = 'pk-v22';
 const SHELL = ['./', './index.html', './pp-backup.js', './manifest.webmanifest', './icon.svg',
                './vendor/qrcode.js', './vendor/zxing.min.js', './vendor/jszip.min.js'];
 

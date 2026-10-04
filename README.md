@@ -4,7 +4,11 @@
 纯前端单页 PWA，数据只存在手机本地（IndexedDB），不上传任何服务器。
 
 👉 网页版 **https://qiukun39.github.io/qr-collector/**
-📱 安卓 App **[packing-proof.apk](packing-proof.apk)**（[直接下载](https://qiukun39.github.io/qr-collector/packing-proof.apk)）
+📱 安卓 App **[packing-proof-2.1.apk](packing-proof-2.1.apk)**（[直接下载](https://qiukun39.github.io/qr-collector/packing-proof-2.1.apk)）
+<!-- 发新版的三件事：① 换掉这两处文件名里的版本号 ② 删掉仓库里上一版的 apk
+     ③ 文件名里的版本号必须和 app/android/app/build.gradle 的 versionName 一致。
+     APK 文件名一律带版本号，不要再用无版本号的 packing-proof.apk —— 否则下载到的
+     是新版还是旧版完全看不出来。 -->
 
 两者**代码同一份**。App 版多了：系统原生语音播报（不受麦克风占用影响）、
 安装时一次性授权、必然生效的屏幕常亮、无地址栏、资源直接打进包。
@@ -143,9 +147,15 @@
 - **视频保留天数**：到期自动清理视频，单据和照片保留
 - **取景框与扫描区域**：可设「整个画面」或「仅取景框内」。限定取景框时只解码框内区域，
   避免误扫到画面里别的码；取景框可单独显示/隐藏
-- **导出**：APK 内弹出三选一——「保存到手机」（写进 `Android/data/<包名>/files/PackingProof/`
-  并显示完整路径）、「分享/发送」（系统分享面板）、「复制内容」（CSV/JSON 直接进剪贴板）；
-  网页版走浏览器下载并提示在「下载」文件夹
+- **导出**：APK 内弹出「保存到手机」/「分享 / 发送」（CSV、JSON 再多一项「复制内容」）。
+  保存走系统 MediaStore——视频和照片进**系统相册的「打包留证」分组**，文档进
+  **「下载 / 打包留证」**，文件管理器能直接找到；网页版走浏览器下载并提示在「下载」文件夹
+
+  > 为什么不写 `Android/data/<包名>/`：安卓 11 起那个目录第三方文件管理器看不到，
+  > 导出的东西等于「存了但找不到」。所以一律走 MediaStore。
+
+- **详情页「一键保存全部」**：发货单一次把视频 + 照片 + 清单 CSV 全存出去；
+  盘点照片多，会多问一句「打包成一个 ZIP」还是「逐张进相册」
 
   > ⚠️ **文件名必须纯 ASCII**。安卓 `MimeTypeMap.getFileExtensionFromUrl` 内部用
   > `[a-zA-Z_0-9.\-()%]+` 校验文件名，含中文时取不到扩展名 → MIME 为 null →

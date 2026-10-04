@@ -1,6 +1,6 @@
 {
-  "name": "打包出库留证",
-  "short_name": "打包留证",
+  "name": "装箱台",
+  "short_name": "装箱台",
   "description": "扫快递面单自动录像，扫商品码提纯序列号并抓拍，按单号归档留证",
   "start_url": "./index.html",
   "scope": "./",

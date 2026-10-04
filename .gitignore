@@ -6,7 +6,7 @@ app/node_modules/
 app/www/
 app/android/local.properties
 app/android/keystore.properties
-app/packingproof.keystore
+app/packdesk.keystore
 app/android/.gradle/
 app/android/build/
 app/android/app/build/

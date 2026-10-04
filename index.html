@@ -305,12 +305,36 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 .pickitem:active{background:#eceef2}
 .pickitem b{display:block;font-size:16px;font-weight:600}
 .pickitem small{display:block;font-size:12.5px;color:var(--dim);margin-top:2px}
-#toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);
-  background:#272c35;color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;font-weight:500;
-  opacity:0;pointer-events:none;transition:opacity .18s;z-index:200;max-width:88vw;text-align:center}
-#toast.on{opacity:1}
-/* 录像页底部有状态条和控制按钮，toast 要抬高避免遮挡 */
-#p-rec.on ~ #toast{bottom:calc(240px + env(safe-area-inset-bottom))}
+/* 一句话通知：贴底、上滑淡入、说完就走，不挡正文 */
+#toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));
+  transform:translate(-50%,14px);
+  background:rgba(39,44,53,.94);color:#fff;padding:10px 17px;border-radius:12px;
+  font-size:13.5px;font-weight:500;line-height:1.4;
+  opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;
+  z-index:200;max-width:84vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.22)}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#p-rec.on ~ #toast{bottom:calc(210px + env(safe-area-inset-bottom))}
+
+/* 长操作用这条：贴在屏幕最下沿，细、不遮内容，自己不会消失 */
+#busy{position:fixed;left:0;right:0;bottom:0;z-index:201;
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  background:var(--card);border-top:1px solid var(--line);
+  box-shadow:0 -4px 16px rgba(0,0,0,.08);
+  transform:translateY(100%);transition:transform .22s ease;}
+#busy.on{transform:translateY(0)}
+#busy .r{display:flex;align-items:center;gap:9px}
+#busy .sp{flex:1 1 auto;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#busy .pct{font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums}
+#busy .ring{width:16px;height:16px;border-radius:50%;flex:0 0 auto;
+  border:2px solid var(--blue-s);border-top-color:var(--blue);animation:spin .8s linear infinite}
+#busy .bar{height:3px;border-radius:999px;background:var(--sub);margin-top:8px;overflow:hidden;display:none}
+#busy.has-bar .bar{display:block}
+#busy .bar i{display:block;height:100%;width:0;background:var(--blue);border-radius:999px;transition:width .2s}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){
+  #busy,#toast{transition:none}
+  #busy .ring{animation:none;border-top-color:var(--blue-s)}
+}
 @media print{
   body{background:#fff}
   .topbar,#toast,.noprint,.dock{display:none !important}
@@ -326,7 +350,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 <!-- ============ 首页 ============ -->
 <section class="page on" id="p-home">
   <div class="topbar">
-    <span class="logo">打包留证</span><span id="st-me" style="font-size:11.5px;color:var(--dim);margin-left:7px"></span><span class="sp"></span>
+    <span class="logo">装箱台</span><span id="st-me" style="font-size:11.5px;color:var(--dim);margin-left:7px"></span><span class="sp"></span>
     <button class="iconbtn" id="gofields" title="字段规则">🏷️</button>
     <button class="iconbtn" id="goset" title="设置">⚙️</button>
   </div>
@@ -665,6 +689,8 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
   </div>
 </div>
 <div id="toast"></div>
+<div id="busy"><div class="r"><span class="ring"></span><span class="sp" id="busy-t"></span>
+  <span class="pct" id="busy-p"></span></div><div class="bar"><i id="busy-b"></i></div></div>
 
 <div class="modal" id="scan1" style="background:#000;z-index:210">
   <div class="topbar"><button class="iconbtn" id="s1close">‹</button>
@@ -721,8 +747,24 @@ const DB={db:null,
 
 /* ===================== 工具 ===================== */
 let tt;
+// 一句话通知。最多停 4 秒——再久就说明该用 progBar() 而不是 toast()
 function toast(m,ms){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
-  clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1800)}
+  clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),Math.min(ms||1800,4000))}
+/* 长操作（保存、导出、上传、等电脑确认）用这条贴底的进度条。
+   以前这些都塞进 toast 并给个 60 秒超时，结果一大块黑框杵在屏幕中间挡着内容。 */
+function progBar(text,pct){
+  const e=document.getElementById('busy');
+  document.getElementById('busy-t').textContent=text||'处理中…';
+  const hasPct=(typeof pct==='number'&&isFinite(pct));
+  e.classList.toggle('has-bar',hasPct);
+  document.getElementById('busy-p').textContent=hasPct?(Math.round(pct)+'%'):'';
+  if(hasPct)document.getElementById('busy-b').style.width=Math.max(2,Math.min(100,pct))+'%';
+  e.classList.add('on');
+}
+function progDone(text){
+  document.getElementById('busy').classList.remove('on');
+  if(text)toast(text,2200);
+}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const visRaw=s=>String(s).replace(/\x1d/g,'<GS>').replace(/\x1e/g,'<RS>')
   .replace(/[\x00-\x08\x0b\x0c\x0e-\x1c\x1f]/g,c=>'<0x'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0')+'>');
@@ -754,7 +796,7 @@ function blobToB64(b){return new Promise((res,rej)=>{const r=new FileReader();
 // 小文件也会卡。改成分片，内存占用恒定，还能报进度。
 const CHUNK=2*1024*1024;
 async function saveChunked(P,blob,name,mime,kind,onProg,dest){
-  const t=await P.MediaSave.begin({name,mime,kind,album:'打包留证',dest:dest||'media'});
+  const t=await P.MediaSave.begin({name,mime,kind,album:'装箱台',dest:dest||'media'});
   const token=t.token;
   try{
     let off=0;
@@ -799,7 +841,7 @@ async function saveFile(blob,name,label,textContent,forceMode){
   }
   const isMedia=/^(video|image)\//.test(mimeOf(name,blob));
   const opts2=[{k:'save',t:'保存到手机',
-                d:isMedia?'存进系统相册的「打包留证」分组':'存进「下载 / 打包留证」，文件管理器能直接找到'},
+                d:isMedia?'存进系统相册的「装箱台」分组':'存进「下载 / 装箱台」，文件管理器能直接找到'},
                {k:'share',t:'分享 / 发送',d:'发微信、存到「文件」、发给自己'}];
   if(textContent!=null)opts2.push({k:'copy',t:'复制内容',d:'直接复制成文本，粘到哪都行'});
   const c=forceMode||await pick('导出 '+name,label||'',opts2);
@@ -807,19 +849,19 @@ async function saveFile(blob,name,label,textContent,forceMode){
   if(c==='copy'){await copy(textContent);return true}
   const mime=mimeOf(name,blob),kind=kindOf(mime);
   const big=blob.size>CHUNK;
-  const prog=(a,b)=>{if(big)toast('保存中 '+Math.round(a/b*100)+'%（'+kb(b)+'）',60000)};
+  const prog=(a,b)=>{if(big)progBar('正在保存到手机（'+kb(b)+'）',a/b*100)};
   try{
     if(c==='save'){
       // 安卓 11 起 Android/data/<包名> 第三方文件管理器打不开，必须走 MediaStore 写公共目录
       if(!P.MediaSave)throw new Error('此版本不支持保存到系统目录，请改用「分享 / 发送」');
-      toast(big?('正在保存 '+kb(blob.size)+'…'):'正在保存…',60000);
+      progBar(big?('正在保存 '+kb(blob.size)+'…'):'正在保存…');
       let r;
       if(kind==='video'&&P.MediaSave.remux){
         // MediaRecorder 吐的是流式 MP4，头里没有 moov（时长和关键帧索引都没有），
         // 相册会显示 1 秒、进度条拖不动。先落缓存再 remux 成标准 MP4 补上。
         const tmp=await saveChunked(P,blob,name,mime,kind,prog,'cache');
-        toast('正在整理视频索引…',60000);
-        const rr=await P.MediaSave.remux({srcPath:tmp.path,name,mime,kind,album:'打包留证'});
+        progBar('正在整理视频索引…');
+        const rr=await P.MediaSave.remux({srcPath:tmp.path,name,mime,kind,album:'装箱台'});
         try{await P.MediaSave.rm({path:tmp.path})}catch(_){}
         if(rr&&rr.remuxed){
           r={path:rr.path,size:blob.size,durationMs:rr.durationMs};
@@ -832,25 +874,28 @@ async function saveFile(blob,name,label,textContent,forceMode){
         r=await saveChunked(P,blob,name,mime,kind,prog);
       }
       lastSavedPath=r.path||'';
-      const where=(kind==='doc')?'用「文件管理 → 下载 → 打包留证」就能找到'
-                                :'已存进系统相册，相册里会出现「打包留证」这个分组';
+      const where=(kind==='doc')?'用「文件管理 → 下载 → 装箱台」就能找到'
+                                :'已存进系统相册，相册里会出现「装箱台」这个分组';
       const dur=(r&&r.durationMs)?('\n时长：'+mmss(r.durationMs)):'';
+      progDone();
       await ask('已保存到手机','位置：'+(r.path||'')+'\n大小：'+kb(blob.size)+dur+'\n\n'+where,
         '知道了','复制路径','💾').then(async ok=>{if(!ok)await copy(r.path||'')});
       return true;
     }
     // 分享仍走应用缓存里的 file://（系统分享面板只接受 file:// 或 http）
-    toast(big?('正在准备 '+kb(blob.size)+'…'):'正在准备…',60000);
+    progBar(big?('正在准备 '+kb(blob.size)+'…'):'正在准备…');
     const data=await blobToB64(blob);
-    const w=await P.Filesystem.writeFile({path:'PackingProof/'+name,data,directory:'CACHE',recursive:true});
-    if(!P.Share){toast('已保存到：'+w.uri,5000);return true}
+    const w=await P.Filesystem.writeFile({path:'PackDesk/'+name,data,directory:'CACHE',recursive:true});
+    progDone();
+    if(!P.Share){toast('已保存到：'+w.uri,4000);return true}
     await P.Share.share({title:name,text:label||name,url:w.uri,dialogTitle:'导出 '+name});
-    toast('已发送：'+name,3000);
+    toast('已发送：'+name,2500);
     return true;
   }catch(e){
+    progDone();
     const m=String(e&&e.message||e);
     if(/cancel/i.test(m)){toast('已取消');return false}
-    toast('导出失败：'+m,5000);
+    toast('导出失败：'+m,4000);
     return false;
   }
 }
@@ -1828,7 +1873,7 @@ async function saveAll(o){
 
   if(choice==='zip'){
     try{
-      toast('正在打包…',60000);
+      progBar('正在打包…');
       await loadJS(['vendor/jszip.min.js','https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'],'JSZip');
       const zip=new JSZip();
       zip.file('清单.csv',orderCsv(o));
@@ -1842,13 +1887,14 @@ async function saveAll(o){
         '');
       for(let i=0;i<zipFiles.length;i++){
         zip.file(zipFiles[i].name,zipFiles[i].blob);
-        toast('正在打包… '+(i+1)+'/'+zipFiles.length,60000);
+        progBar('正在打包 '+(i+1)+'/'+zipFiles.length,(i+1)/zipFiles.length*100);
       }
       const blob=await zip.generateAsync({type:'blob',compression:'STORE'},
-        m=>{if(m.percent>5)toast('压缩中 '+Math.round(m.percent)+'%',60000)});
+        m=>{if(m.percent>5)progBar('正在压缩…',m.percent)});
+      progDone();
       await saveFile(blob,asciiName(o.no,'order')+'_'+(TYPE_TAG[o.type||'out']||'ship')+'_pack.zip',
         o.no+'（'+zipFiles.length+' 个文件）',null,'save');
-    }catch(e){toast('打包失败：'+(e&&e.message||e),4000)}
+    }catch(e){progDone();toast('打包失败：'+(e&&e.message||e),4000)}
     return;
   }
 
@@ -1862,12 +1908,12 @@ async function saveAll(o){
   let ok=0,fail=0,lastPath='';
   for(let i=0;i<files.length;i++){
     const f=files[i];
-    toast('保存中 '+(i+1)+'/'+files.length+'　'+f.name,60000);
+    progBar('正在保存 '+(i+1)+'/'+files.length+'　'+f.name,(i+1)/files.length*100);
     try{
       const mime=mimeOf(f.name,f.blob);
       if(f.kind==='video'&&P.MediaSave.remux){
         const tmp=await saveChunked(P,f.blob,f.name,mime,'video',null,'cache');
-        const rr=await P.MediaSave.remux({srcPath:tmp.path,name:f.name,mime,kind:'video',album:'打包留证'});
+        const rr=await P.MediaSave.remux({srcPath:tmp.path,name:f.name,mime,kind:'video',album:'装箱台'});
         try{await P.MediaSave.rm({path:tmp.path})}catch(_){}
         if(!rr||!rr.remuxed)await saveChunked(P,f.blob,f.name,mime,'video',null);
         lastPath=(rr&&rr.path)||lastPath;
@@ -1885,9 +1931,10 @@ async function saveAll(o){
       asciiName(o.no,'order')+'_'+(TYPE_TAG[o.type||'out']||'ship')+'_list.csv','text/csv','doc',null);
     csvPath=r.path||'';ok++;
   }catch(e){fail++}
+  progDone();
   await ask(fail?('保存完成，'+fail+' 个失败'):'全部保存完成',
     '成功 '+ok+' 个'+(fail?('，失败 '+fail+' 个'):'')+'\n\n'+
-    '视频和照片：相册里的「打包留证」分组\n清单 CSV：'+(csvPath||'下载 / 打包留证'),
+    '视频和照片：相册里的「装箱台」分组\n清单 CSV：'+(csvPath||'下载 / 装箱台'),
     '知道了','复制路径',fail?'⚠️':'✅').then(async x=>{if(!x)await copy(lastPath||csvPath)});
 }
 // 把一单传到 PackingProof 电脑端。失败不影响本地数据，随时可在单据里重试。
@@ -1905,30 +1952,31 @@ async function ppSend(o,mode){
     return false;
   }
   try{
-    if(!quiet)toast('正在备份到电脑…',60000);
+    if(!quiet)progBar('正在备份到电脑…');
     const r=await PPBackup.upload(o,v.blob,videoName(o)+extOf(v.blob.type),
       (a,b)=>{
         ppUp={id:o.id,pct:Math.round(a/b*100)};ppHome();
-        if(!quiet)toast('备份到电脑 '+ppUp.pct+'%（'+kb(b)+'）',60000);
+        if(!quiet)progBar('正在备份到电脑（'+kb(b)+'）',ppUp.pct);
       });
     ppUp=null;
     o.pp={at:Date.now(),recordId:(r&&r.recordId)||null,status:(r&&r.status)||'done'};
     delete o.ppq;ppOnline=true;
     await DB.put('orders',o);renderOrders();
     if(!quiet){
+      progDone();
       toast('已备份到电脑'+((r&&r.alreadyCompleted)?'（电脑端已有同一个文件）':''),3000);
       say('已备份到电脑');
     }
     return true;
   }catch(e){
-    ppUp=null;
+    ppUp=null;progDone();
     let kind0=PPBackup.classify(e);
     // 凭据失效不该让人重新扫码：地址和设备号都还在，自动重新注册一次，
     // 电脑端那边再点一次「允许」就恢复了
     if(kind0==='credential'&&!o.__reenroll){
       o.__reenroll=1;
       try{
-        if(!quiet)toast('配对已失效，正在重新连接电脑…',30000);
+        if(!quiet)progBar('配对已失效，正在重新连接电脑…');
         await PPBackup.reEnroll();
         ppSync();
         return await ppSend(o,mode);
@@ -2299,14 +2347,15 @@ document.getElementById('o-ppname').oninput=e=>{
 async function ppDoPair(connectText){
   if(!window.PPBackup)return;
   try{
-    toast('已发出配对请求，去电脑上点「允许」…',120000);
+    progBar('已发出配对请求，去电脑上点「允许」…');
     const r=await PPBackup.enroll(connectText,document.getElementById('o-ppname').value);
-    ppSync();
+    progDone();ppSync();
     ppQueueRun(true).then(ppQueueTick);     // 配对前攒下的，这就开始传
     await ask('配对成功','电脑端：'+((r.node&&(r.node.nodeName||r.node.name))||r.host)+
       '\n地址：'+r.host+'\n本机名：'+r.deviceName+
       '\n\n以后在单据详情里点「备份到电脑」即可上传。','知道了','','💻');
   }catch(e){
+    progDone();
     const m=(e&&e.message)||String(e);
     await ask('配对失败',m,'知道了','复制错误','⚠️').then(async ok=>{if(!ok)await copy(m)});
   }

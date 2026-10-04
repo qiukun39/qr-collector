@@ -1,6 +1,6 @@
 {
-  "appId": "com.qk.packingproof",
-  "appName": "打包留证",
+  "appId": "com.qk.packdesk",
+  "appName": "装箱台",
   "webDir": "www",
   "android": {
     "allowMixedContent": true,

@@ -1,5 +1,5 @@
 /* 离线缓存：stale-while-revalidate，改版只需 bump VER */
-const VER = 'pd-v3';
+const VER = 'pd-v4';
 const SHELL = ['./', './index.html', './pd-backup.js', './pp-backup.js', './manifest.webmanifest', './icon.svg',
                './vendor/qrcode.js', './vendor/zxing.min.js', './vendor/jszip.min.js'];
 

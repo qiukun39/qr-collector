@@ -7,7 +7,7 @@
 纯前端单页 PWA，数据只存在手机本地（IndexedDB），不上传任何服务器。
 
 👉 网页版 **https://qiukun39.github.io/qr-collector/**
-📱 安卓 App **[packdesk-3.1.apk](packdesk-3.1.apk)**（[直接下载](https://qiukun39.github.io/qr-collector/packdesk-3.1.apk)）
+📱 安卓 App **[packdesk-3.2.apk](packdesk-3.2.apk)**（[直接下载](https://qiukun39.github.io/qr-collector/packdesk-3.2.apk)）
 <!-- 发新版的三件事：① 换掉这两处文件名里的版本号 ② 删掉仓库里上一版的 apk
      ③ 文件名里的版本号必须和 app/android/app/build.gradle 的 versionName 一致。
      APK 文件名一律带版本号，不要再用无版本号的 packing-proof.apk —— 否则下载到的

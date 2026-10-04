@@ -590,7 +590,8 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
         <label class="sw"><input type="checkbox" id="o-pdon"><i></i></label></div>
       <div class="rowi pd-cfg" style="display:none"><span class="lab">本机显示名<small>电脑端列表里显示成这个名字</small></span>
         <input type="text" class="mono" id="o-pdname" placeholder="打包台1" autocapitalize="off" spellcheck="false"></div>
-      <div class="rowi pd-cfg" style="display:none"><span class="lab" style="color:var(--dim)">电脑端地址<small>电脑上运行装箱台后，它会把地址打印出来；只填 IP 按默认端口 5178 算</small></span></div>
+      <div class="rowi pd-cfg" id="row-pdscan" style="display:none"><span class="lab" style="color:var(--blue)">扫码连接<small>电脑上打开装箱台的界面，扫「连接手机」那个二维码</small></span><span class="chev">›</span></div>
+      <div class="rowi pd-cfg" style="display:none"><span class="lab" style="color:var(--dim)">或者手填地址<small>电脑端界面上也写着；只填 IP 按默认端口 5178 算</small></span></div>
       <div class="rowi pd-cfg" style="display:none"><input type="text" class="mono" id="o-pdhost"
         placeholder="http://192.168.31.15:5178" autocapitalize="off" autocorrect="off" spellcheck="false"
         style="width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px;background:var(--sub)"></div>
@@ -2452,7 +2453,8 @@ function ppHome(){
   btns.innerHTML=paired
     ?`<button class="pri" id="pp-now" ${(wait||bad)?'':'disabled'}>立即备份</button>
       <button class="sec" id="pp-auto">${c.auto?'暂停上传':'继续上传'}</button>`
-    :(pdOn?`<button class="pri" id="pp-manual">连接电脑</button>`
+    :(pdOn?`<button class="pri" id="pd-scan2">⛶ 扫码连接</button>
+            <button class="sec" id="pp-manual">手填地址</button>`
           :`<button class="pri" id="pp-scan">⛶ 扫码连接</button>
             <button class="sec" id="pp-manual">手填地址</button>`);
   const now=document.getElementById('pp-now');
@@ -2470,6 +2472,8 @@ function ppHome(){
   };
   const sc=document.getElementById('pp-scan');
   if(sc)sc.onclick=()=>{const r=document.getElementById('row-ppscan');if(r&&r.onclick)r.onclick()};
+  const sc2=document.getElementById('pd-scan2');
+  if(sc2)sc2.onclick=()=>{const r=document.getElementById('row-pdscan');if(r&&r.onclick)r.onclick()};
   const mn=document.getElementById('pp-manual');
   if(mn)mn.onclick=()=>{show('store');updQuota();bkInfo();ppFocusSettings(pdOn?'pd':'pp')};
   kill.onclick=async()=>{
@@ -2504,10 +2508,28 @@ document.getElementById('o-pdhost').onchange=e=>{
 document.getElementById('row-pdpair').onclick=async()=>{
   if(!window.PDBackup)return;
   const host=(document.getElementById('o-pdhost').value||'').trim();
-  if(!host){toast('先填电脑端显示的地址');return}
+  if(!host){toast('先扫码，或者填电脑端界面上写的地址');return}
+  await pdDoPair(host);   // 手填时没有配对码，电脑端会弹确认，这是对的
+};
+document.getElementById('row-pdscan').onclick=async()=>{
+  if(!window.PDBackup)return;
+  const txt=await scanOnce('扫码连接电脑','在电脑上打开装箱台界面，扫「连接手机」那个码');
+  if(!txt)return;
+  let info;
+  try{info=PDBackup.parseConnect(txt)}
+  catch(e){
+    await ask('这个码不对','扫到的内容：\n'+txt.slice(0,80)+
+      '\n\n需要的是电脑端界面上「连接手机」那个二维码。','知道了','','⚠️');
+    return;
+  }
+  document.getElementById('o-pdhost').value=info.host;
+  PDBackup.set({host:info.host});
+  await pdDoPair(txt);
+};
+async function pdDoPair(connectText){
   try{
-    progBar('正在连接电脑，去电脑上确认一下…');
-    const r=await PDBackup.enroll(host,document.getElementById('o-pdname').value);
+    progBar('正在连接电脑…');
+    const r=await PDBackup.enroll(connectText,document.getElementById('o-pdname').value);
     progDone();pdSync();ppHeartbeat();
     ppQueueRun(true).then(ppQueueTick);        // 连上之前攒的，这就开始传
     await ask('连接成功','电脑：'+((r.node&&r.node.nodeName)||r.host)+
@@ -2518,7 +2540,7 @@ document.getElementById('row-pdpair').onclick=async()=>{
     const m=(e&&e.message)||String(e);
     await ask('连接失败',m,'知道了','复制错误','⚠️').then(async ok=>{if(!ok)await copy(m)});
   }
-};
+}
 document.getElementById('row-pdunpair').onclick=async()=>{
   if(await ask('断开这台电脑？','断开后要重新填地址连接。已经备份好的录像不受影响。','断开','取消','🔌')){
     PDBackup.unpair();ppOnline=null;pdSync();toast('已断开');

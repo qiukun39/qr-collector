@@ -152,6 +152,8 @@
         return '配对已失效，正在重新连接';
       case 'bad_signature':
         return '签名校验不通过（协议对不上，请反馈）';
+      case 'pairing_expired':
+        return '这个二维码已经用过或超时了。到电脑上刷新一下页面，会显示新的码';
       case 'enroll_denied':
         return '电脑端拒绝了这次连接';
       case 'enroll_unavailable':
@@ -167,6 +169,11 @@
 
   /* ---------------- 连接 ---------------- */
 
+  /**
+   * 解析电脑端二维码里的网址，形如
+   *   http://192.168.31.15:5178/pair?t=9f3a2b7c
+   * 也容忍手填的 ip、ip:port、完整网址。
+   */
   function parseConnect(text) {
     var raw = String(text || '').trim();
     if (!raw) throw new Error('内容是空的');
@@ -181,7 +188,10 @@
     try { u = new URL(raw); } catch (e) { throw new Error('地址格式不对：' + raw.slice(0, 60)); }
     // 没写端口就补默认端口。少这一步会去连 80，电脑端不在那儿听，
     // 表现就是「怎么填都连不上」——PackingProof 那条通道上踩过一模一样的坑
-    return { host: u.protocol + '//' + u.hostname + ':' + (u.port || DEFAULT_PORT) };
+    return {
+      host: u.protocol + '//' + u.hostname + ':' + (u.port || DEFAULT_PORT),
+      pairingToken: u.searchParams.get('t') || ''
+    };
   }
 
   async function probe(host) {
@@ -213,8 +223,9 @@
     return 'pd-' + hex(crypto.getRandomValues(new Uint8Array(8)));
   }
 
-  async function enroll(host, deviceName) {
+  async function enroll(host, deviceName, pairingToken) {
     var parsed = parseConnect(host);
+    var token = pairingToken || parsed.pairingToken || '';
     var node = await probe(parsed.host);
     cfg.host = parsed.host;
     var deviceId = cfg.deviceId || newDeviceId();
@@ -224,7 +235,8 @@
       method: 'POST', signed: false,
       body: {
         deviceId: deviceId, deviceName: name, deviceKind: 'mobile',
-        protocol: PROTO.protocol, clientVersion: PROTO.clientVersion
+        protocol: PROTO.protocol, clientVersion: PROTO.clientVersion,
+        pairingToken: token || undefined
       }
     });
     var cred = r && r.credential;
@@ -245,7 +257,7 @@
   // 不该让人重新扫码/重填地址
   async function reEnroll() {
     if (!cfg.host) throw new Error('还没连过电脑端');
-    return await enroll(cfg.host, cfg.deviceName);
+    return await enroll(cfg.host, cfg.deviceName, '');
   }
 
   async function heartbeat(connected) {

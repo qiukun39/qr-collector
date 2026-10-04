@@ -452,6 +452,10 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="rowi"><span class="lab">抓拍倒计时报数</span><label class="sw"><input type="checkbox" id="o-ttscd"><i></i></label></div>
       <div class="rowi"><span class="lab">语速</span>
         <select id="o-ttsrate"><option value="0.8">慢</option><option value="1">正常</option><option value="1.2">快</option><option value="1.5">很快</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">扫到单号后额外提醒<small>填什么就播什么，留空不播。例：记得放入合格证</small></span></div>
+      <div class="rowi"><input type="text" id="o-tiptext" placeholder="记得放入合格证"
+        style="width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px;
+               min-height:44px;background:var(--sub)"></div>
       <div class="rowi" id="row-ttstest"><span class="lab">试听</span><span class="chev">›</span></div>
       <div class="rowi" id="row-ttsdiag"><span class="lab">语音自检<small id="ttsdiag">点这里跑一次检测</small></span><span class="chev">›</span></div>
     </div>
@@ -629,7 +633,7 @@ let opts=Object.assign({
   scanarea:'full',showframe:true,
   dup:'block',sw:'auto',samestop:0,
   q:1080,maxsec:120,audio:true,aec:false,wake:true,livemark:true,markstyle:'outline',marksn:true,
-  tts:true,ttsno:true,ttssn:false,ttscd:true,ttsrate:1,
+  tts:true,ttsno:true,ttssn:false,ttscd:true,ttsrate:1,tiptext:'',
   cmd:true,snapdelay:3,photo:true,mark:true,size:1600,beep:true,vib:true,keep:0
 },lsGet(K.opt,{}));
 let orders=[],filt='all',recType='out';
@@ -1296,7 +1300,8 @@ async function startOrder(no,opt){
   hideBig();
   sfx('start');
   toast(scan?('开始任务：'+no):('开录：'+no),2200);
-  say(scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像'),true);
+  const tip=(!scan&&opts.tiptext&&opts.tiptext.trim())?('。'+opts.tiptext.trim()):'';
+  say((scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像'))+tip,true);
   updUI();renderRecItems();
   clearInterval(durTimer);durTimer=setInterval(tickDur,500);
   clearTimeout(maxTimer);
@@ -1595,7 +1600,7 @@ function syncOpts(){
   [['wbrule','wbrule'],['cfmt','cfmt'],['scanrule','scanrule'],['scfmt','scfmt'],['scanarea','scanarea'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
    ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],
    ['ttsrate','ttsrate']].forEach(([id,k])=>{const e=document.getElementById('o-'+id);if(e)e.value=String(opts[k])});
-  ['clen','cpre','cexc','sclen','scpre','scexc'].forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.value=opts[k]||''});
+  ['clen','cpre','cexc','sclen','scpre','scexc','tiptext'].forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.value=opts[k]||''});
   document.querySelectorAll('.rowi.cst').forEach(r=>r.style.display=opts.wbrule==='custom'?'':'none');
   document.querySelectorAll('.rowi.sct').forEach(r=>r.style.display=opts.scanrule==='custom'?'':'none');
   const d=document.getElementById('wbdesc');if(d)d.textContent=wbDesc();
@@ -1932,7 +1937,8 @@ document.getElementById('row-store').onclick=()=>{show('store');updQuota();bkInf
 document.getElementById('st-engine').onclick=()=>enterRec(recType);
 document.getElementById('row-ttstest').onclick=()=>{
   if(!opts.tts){toast('先打开语音播报');return}
-  say('开始录像，单号 S F 5 1 4 0，第 1 件，录像已保存',true);toast('已试听')};
+  const tip=(opts.tiptext&&opts.tiptext.trim())?('。'+opts.tiptext.trim()):'';
+  say('开始录像，单号 S F 5 1 4 0'+tip,true);toast('已试听')};
 document.getElementById('row-ttsdiag').onclick=async()=>{
   const el=document.getElementById('ttsdiag');
   const sup=(NATIVE&&nativeTTS())?true:('speechSynthesis' in window);
@@ -2023,7 +2029,7 @@ const selMap=[['wbrule','wbrule',v=>v],['cfmt','cfmt',v=>v],['scanrule','scanrul
 selMap.forEach(([id,k,f])=>{const e=document.getElementById('o-'+id);
   if(e)e.onchange=ev=>{opts[k]=f(ev.target.value);lsSet(K.opt,opts);syncOpts();updUI();
     if(id==='q'&&standby&&!cur)toast('画质下次开待机时生效',2400)}});
-['clen','cpre','cexc','sclen','scpre','scexc'].forEach(k=>{const e=document.getElementById('o-'+k);
+['clen','cpre','cexc','sclen','scpre','scexc','tiptext'].forEach(k=>{const e=document.getElementById('o-'+k);
   if(e)e.oninput=ev=>{opts[k]=ev.target.value;lsSet(K.opt,opts)}});
 
 document.getElementById('q').oninput=renderOrders;

@@ -1,6 +1,6 @@
 /* 离线缓存：stale-while-revalidate，改版只需 bump VER */
-const VER = 'pd-v1';
-const SHELL = ['./', './index.html', './pp-backup.js', './manifest.webmanifest', './icon.svg',
+const VER = 'pd-v3';
+const SHELL = ['./', './index.html', './pd-backup.js', './pp-backup.js', './manifest.webmanifest', './icon.svg',
                './vendor/qrcode.js', './vendor/zxing.min.js', './vendor/jszip.min.js'];
 
 self.addEventListener('install', e => {

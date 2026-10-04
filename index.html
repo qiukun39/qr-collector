@@ -584,6 +584,22 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="hint" id="qtext">统计中…</div>
       <div class="hint" id="persist" style="margin-top:5px"></div>
     </div>
+    <div class="grp" id="grp-pd">备份到自己的电脑（装箱台）</div>
+    <div class="list" id="list-pd">
+      <div class="rowi"><span class="lab">启用<small id="pd-sub">把录像、照片、清单传到电脑上的装箱台</small></span>
+        <label class="sw"><input type="checkbox" id="o-pdon"><i></i></label></div>
+      <div class="rowi pd-cfg" style="display:none"><span class="lab">本机显示名<small>电脑端列表里显示成这个名字</small></span>
+        <input type="text" class="mono" id="o-pdname" placeholder="打包台1" autocapitalize="off" spellcheck="false"></div>
+      <div class="rowi pd-cfg" style="display:none"><span class="lab" style="color:var(--dim)">电脑端地址<small>电脑上运行装箱台后，它会把地址打印出来；只填 IP 按默认端口 5178 算</small></span></div>
+      <div class="rowi pd-cfg" style="display:none"><input type="text" class="mono" id="o-pdhost"
+        placeholder="http://192.168.31.15:5178" autocapitalize="off" autocorrect="off" spellcheck="false"
+        style="width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px;background:var(--sub)"></div>
+      <div class="rowi pd-cfg" id="row-pdpair" style="display:none"><span class="lab" style="color:var(--blue)">连接电脑<small>点完到电脑上确认一下</small></span><span class="chev">›</span></div>
+      <div class="rowi pd-cfg" style="display:none"><span class="lab">录完自动备份<small>停止录像后自动上传，失败会自动重试</small></span>
+        <label class="sw"><input type="checkbox" id="o-pdauto"><i></i></label></div>
+      <div class="rowi pd-cfg" id="row-pdunpair" style="display:none"><span class="lab" style="color:var(--red)">断开这台电脑</span><span class="chev">›</span></div>
+    </div>
+
     <div class="grp" id="grp-pp">备份到电脑（PackingProof）</div>
     <div class="list" id="list-pp">
       <div class="rowi"><span class="lab">启用局域网备份<small id="pp-sub">把录像传到同一 WiFi 下的 PackingProof 电脑端</small></span>
@@ -704,6 +720,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 </div>
 
 <!-- 局域网备份到 PackingProof 电脑端。整个功能都在这个文件里，删掉这一行即可停用 -->
+<script src="pd-backup.js"></script>
 <script src="pp-backup.js"></script>
 <script>
 /* ===================== 配置 ===================== */
@@ -1445,7 +1462,11 @@ async function stopOrder(silent){
   hideBig();closeSheet();
   updUI();renderRecItems();renderOrders();updQuota();
   if(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()&&PPBackup.config.auto&&o.vid){
-    setTimeout(()=>ppSend(o,'auto'),400);     // 不挡住停止流程，后台传
+    // 不挡住停止流程，后台传。两条通道各按各的开关走
+    setTimeout(async()=>{
+      if(window.PDBackup&&PDBackup.isOn()&&PDBackup.config.auto)await pdSend(o,'auto');
+      if(window.PPBackup&&PPBackup.isOn()&&PPBackup.config.auto)await ppSend(o,'auto');
+    },400);
   }
   if(!silent){sfx('stop');
     const n=o.items.filter(i=>!i.snap).length;
@@ -1659,7 +1680,9 @@ function filtered(){
   return orders.filter(o=>matchQ(o,q)&&(filt==='all'||(o.type||'out')===filt));
 }
 function renderOrders(){
-  ppHomeSoon();                       // 单据状态变了，首页那条的「待传 N 单」跟着变
+  ppHomeSoon();
+  // 两条通道都开着才给 PackingProof 的徽标加前缀，否则加了反而费解
+  const bkPfx=(window.PDBackup&&PDBackup.isOn())?'PP ':'💻 ';                       // 单据状态变了，首页那条的「待传 N 单」跟着变
   const q=document.getElementById('q').value.trim().toLowerCase();
   const all=orders.filter(o=>matchQ(o,q));
   document.querySelectorAll('.chip').forEach(c=>{
@@ -1685,9 +1708,12 @@ function renderOrders(){
            ${o.type==='scan'?'<span class="mini t">📋 盘点</span>'
              :(o.vid?'<span class="mini b">📹 '+kb(o.vsize)+'</span>':'<span class="mini r">无视频</span>')}
            ${o.lm?'<span class="mini g">水印</span>':''}
-           ${o.pp?'<span class="mini b">💻 已备份</span>'
-             :(o.ppq?(o.ppq.next>0?'<span class="mini o">⏳ 待备份</span>'
+           ${o.pd?'<span class="mini b">💻 已备份</span>'
+             :(o.pdq?(o.pdq.next>0?'<span class="mini o">⏳ 待备份</span>'
                                   :'<span class="mini r">⚠️ 备份失败</span>'):'')}
+           ${o.pp?`<span class="mini b">${bkPfx}已备份</span>`
+             :(o.ppq?(o.ppq.next>0?`<span class="mini o">${bkPfx}待备份</span>`
+                                  :`<span class="mini r">⚠️ ${bkPfx}备份失败</span>`):'')}
            ${n?'<span class="mini g">'+n+' 件</span>':''}
            ${ph?'<span class="mini o">'+ph+' 图</span>':''}</span>
          <span class="chev">›</span></li>`}).join('')}</ul>`).join('');
@@ -1774,9 +1800,12 @@ async function openOrder(o){
       </div>
       <div class="row" style="margin-top:8px">
         ${o.type==='scan'?'':`<button class="btn sm pri" id="oburn" ${o.vid?'':'disabled'}>补烧水印并导出</button>`}
+        ${(window.PDBackup&&PDBackup.isOn()&&PDBackup.isPaired())
+          ?`<button class="btn sm" id="opd">${
+            o.pd?'已备份 · 重传':(o.pdq?'重试备份':'备份到电脑')}</button>`:''}
         ${(o.type!=='scan'&&window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired())
           ?`<button class="btn sm" id="opp" ${o.vid?'':'disabled'}>${
-            o.pp?'已备份 · 重传':(o.ppq?'重试备份':'备份到电脑')}</button>`:''}
+            o.pp?'PP 已备份 · 重传':(o.ppq?'PP 重试':'传到 PackingProof')}</button>`:''}
         <button class="btn sm bad" id="odel">删除本单</button>
       </div>
       <div class="pbar" id="burnbar" style="display:none"><i></i></div>
@@ -1798,6 +1827,7 @@ async function openOrder(o){
   const ov=document.getElementById('ovideo');if(ov)ov.onclick=async()=>{const v=await DB.get('videos',o.id);
     if(v&&v.blob)await saveFile(v.blob,videoName(o)+extOf(v.blob.type),o.no+' 录像')};
   const ob=document.getElementById('oburn');if(ob)ob.onclick=()=>burn(o);
+  const opd=document.getElementById('opd');if(opd)opd.onclick=()=>pdSend(o,'ask');
   const opp=document.getElementById('opp');if(opp)opp.onclick=()=>ppSend(o);
   document.getElementById('odel').onclick=async()=>{
     if(!await ask('删除这单？','单号 '+o.no+'\n视频、照片和序列号会一并删除，无法恢复。',
@@ -1937,6 +1967,95 @@ async function saveAll(o){
     '视频和照片：相册里的「装箱台」分组\n清单 CSV：'+(csvPath||'下载 / 装箱台'),
     '知道了','复制路径',fail?'⚠️':'✅').then(async x=>{if(!x)await copy(lastPath||csvPath)});
 }
+/* ============ 自己的电脑端（装箱台 PackDesk） ============
+   和 PackingProof 那条通道各管各的，可以同时开。
+   区别：这条能把照片和清单也传过去，序列号时间轴电脑端会落库。 */
+async function pdFiles(o){
+  const out={photos:[]};
+  const v=await DB.get('videos',o.id);
+  if(v&&v.blob)out.video={blob:v.blob,name:videoName(o)+extOf(v.blob.type)};
+  let n=0;
+  for(const it of (o.items||[])){
+    if(!it.ph)continue;
+    const p=await DB.get('photos',it.ph);
+    if(!p||!p.blob)continue;
+    n++;
+    out.photos.push({blob:p.blob,name:String(n).padStart(2,'0')+'.jpg',
+                     code:it.snap?'':(it.v||''),takenAt:it.t});
+  }
+  const csv=orderCsv(o);
+  if(csv)out.manifest={blob:new Blob([csv],{type:'text/csv'}),name:'list.csv'};
+  return out;
+}
+// mode: 'ask' 手动点的；'auto' 录完自动传；'quiet' 队列后台重试
+async function pdSend(o,mode){
+  const quiet=(mode==='quiet'),silent=quiet||mode==='auto';
+  if(!(window.PDBackup&&PDBackup.isOn()&&PDBackup.isPaired()))return false;
+  const files=await pdFiles(o);
+  if(!files.video&&!files.photos.length){
+    if(o.pdq){delete o.pdq;await DB.put('orders',o);renderOrders()}
+    if(!silent)toast('这一单没有可传的内容');
+    return false;
+  }
+  try{
+    if(!quiet)progBar('正在备份到电脑…');
+    const r=await PDBackup.upload(o,files,(a,b)=>{
+      ppUp={id:o.id,pct:Math.round(a/b*100)};ppHome();
+      if(!quiet)progBar('正在备份到电脑（'+kb(b)+'）',ppUp.pct);
+    });
+    ppUp=null;
+    o.pd={at:Date.now(),recordId:(r&&r.recordId)||null,dir:(r&&r.dir)||''};
+    delete o.pdq;ppOnline=true;
+    await DB.put('orders',o);renderOrders();
+    if(!quiet){progDone();toast('已备份到电脑',2500);say('已备份到电脑')}
+    return true;
+  }catch(e){
+    ppUp=null;progDone();
+    let kind=PDBackup.classify(e);
+    // 连接失效不该让人重新填地址：地址和设备号都还在，自动重连一次
+    if(kind==='credential'&&!o.__pdre){
+      o.__pdre=1;
+      try{
+        if(!quiet)progBar('连接已失效，正在重新连接电脑…');
+        await PDBackup.reEnroll();pdSync();progDone();
+        return await pdSend(o,mode);
+      }catch(e2){}
+    }
+    delete o.__pdre;
+    const m=(e&&e.message)||String(e);
+    const retry=PDBackup.autoRetry(kind);
+    const tries=((o.pdq&&o.pdq.tries)||0)+1;
+    o.pdq={kind:kind,msg:m,tries:tries,at:Date.now(),next:retry?(Date.now()+ppBackoff(tries)):0};
+    if(kind==='offline')ppOnline=false;
+    await DB.put('orders',o);renderOrders();
+    if(!silent){
+      await ask('备份失败',m+'\n\n'+(retry?'已记在待备份里，电脑端恢复后会自动重传。'
+                                      :'本地数据没受影响，处理完上面的问题再重试。'),
+        '知道了','复制错误','⚠️').then(async ok=>{if(!ok)await copy(m)});
+    }else if(!quiet){
+      toast(retry?'电脑端连不上，已记下稍后自动重传':('自动备份失败：'+m),4000);
+    }
+    return false;
+  }
+}
+function pdSync(){
+  const on=!!(window.PDBackup&&PDBackup.isOn());
+  const e=document.getElementById('o-pdon');if(e)e.checked=on;
+  document.querySelectorAll('.rowi.pd-cfg').forEach(r=>r.style.display=on?'':'none');
+  if(!window.PDBackup)return;
+  const c=PDBackup.config;
+  const h=document.getElementById('o-pdhost');if(h)h.value=c.host||'';
+  const n=document.getElementById('o-pdname');if(n)n.value=c.deviceName||'';
+  const a=document.getElementById('o-pdauto');if(a)a.checked=!!c.auto;
+  const sub=document.getElementById('pd-sub');
+  if(sub)sub.textContent=PDBackup.isPaired()
+    ?('已连接：'+(c.nodeName||c.host))
+    :'把录像、照片、清单传到电脑上的装箱台';
+  const up=document.getElementById('row-pdunpair');
+  if(up)up.style.display=(on&&PDBackup.isPaired())?'':'none';
+  ppHome();
+}
+
 // 把一单传到 PackingProof 电脑端。失败不影响本地数据，随时可在单据里重试。
 // mode: 'ask' 手动点的，失败要弹框；'auto' 录完自动传；'quiet' 队列在后台重试
 async function ppSend(o,mode){
@@ -2010,32 +2129,51 @@ async function ppSend(o,mode){
 function ppBackoff(tries){                        // 15s 起步，翻倍，封顶 10 分钟
   return Math.min(15000*Math.pow(2,Math.max(0,tries-1)),600000);
 }
-function ppPending(list){                         // 等着重传的单子
-  return (list||orders||[]).filter(o=>o.ppq&&o.ppq.next>0&&!o.pp);
+// 两条通道各算各的：同一单可能已经传到自家电脑端，但 PackingProof 那边还欠着
+function ppPending(list){
+  return (list||orders||[]).filter(o=>
+    (o.ppq&&o.ppq.next>0&&!o.pp)||(o.pdq&&o.pdq.next>0&&!o.pd));
+}
+function ppDue(o,now){
+  const a=(o.ppq&&o.ppq.next>0&&!o.pp&&o.ppq.next<=now);
+  const b=(o.pdq&&o.pdq.next>0&&!o.pd&&o.pdq.next<=now);
+  return a||b;
 }
 let ppRunning=false;
 async function ppQueueRun(force){
   if(ppRunning)return;
   if(!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()))return;
   const now=Date.now();
-  const due=ppPending().filter(o=>force||o.ppq.next<=now)
+  const due=ppPending().filter(o=>force||ppDue(o,now))
                        .sort((a,b)=>a.t-b.t);     // 先传早的，顺序和录的顺序一致
   if(!due.length)return;
   ppRunning=true;
   try{
     for(const o of due){
-      const ok=await ppSend(o,'quiet');
-      // 一单连不上，后面的多半也连不上；停下来等下一轮，别把电量耗在空转上
-      if(!ok&&o.ppq&&o.ppq.kind==='offline')break;
+      if(o.pdq&&!o.pd&&(force||o.pdq.next<=Date.now())){
+        const ok=await pdSend(o,'quiet');
+        // 一单连不上，后面的多半也连不上；停下来等下一轮，别把电量耗在空转上
+        if(!ok&&o.pdq&&o.pdq.kind==='offline')break;
+      }
+      if(o.ppq&&!o.pp&&(force||o.ppq.next<=Date.now())){
+        const ok=await ppSend(o,'quiet');
+        if(!ok&&o.ppq&&o.ppq.kind==='offline')break;
+      }
     }
   }finally{ppRunning=false}
 }
 let ppHbTimer=0;
 function ppHeartbeat(){
   clearInterval(ppHbTimer);
-  if(!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()))return;
+  const pdOn=!!(window.PDBackup&&PDBackup.isOn()&&PDBackup.isPaired());
+  const ppOn=!!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired());
+  if(!pdOn&&!ppOn)return;
   const beat=()=>{
     if(document.visibilityState!=='visible')return;   // 后台不发，省电
+    if(pdOn)PDBackup.heartbeat(true)
+      .then(()=>{if(ppOnline!==true){ppOnline=true;ppHome();ppQueueRun(true).then(ppQueueTick)}})
+      .catch(()=>{if(!ppOn&&ppOnline!==false){ppOnline=false;ppHome()}});
+    if(!ppOn)return;
     // 心跳成不成，正好就是「电脑在不在线」的判据，不用再单独探一次
     PPBackup.heartbeat(true)
       .then(()=>{if(ppOnline!==true){ppOnline=true;ppHome();
@@ -2050,7 +2188,11 @@ function ppQueueTick(){
   clearTimeout(ppTimer);
   const due=ppPending();
   if(!due.length)return;
-  const wait=Math.max(5000,Math.min(...due.map(o=>o.ppq.next))-Date.now());
+  const nexts=[];
+  due.forEach(o=>{if(o.ppq&&o.ppq.next>0&&!o.pp)nexts.push(o.ppq.next);
+                  if(o.pdq&&o.pdq.next>0&&!o.pd)nexts.push(o.pdq.next)});
+  if(!nexts.length)return;
+  const wait=Math.max(5000,Math.min(...nexts)-Date.now());
   ppTimer=setTimeout(async()=>{await ppQueueRun();ppQueueTick()},Math.min(wait,600000));
 }
 async function burn(o){
@@ -2198,8 +2340,9 @@ async function scanOnce(title,tip){
 }
 
 // 从首页那条状态进来时，把 PackingProof 这一组滚到眼前并短暂高亮
-function ppFocusSettings(){
-  const g=document.getElementById('grp-pp'),l=document.getElementById('list-pp');
+function ppFocusSettings(which){
+  const suffix=(which==='pd')?'pd':'pp';
+  const g=document.getElementById('grp-'+suffix),l=document.getElementById('list-'+suffix);
   if(!g||!l)return;
   setTimeout(()=>{
     g.scrollIntoView({block:'start',behavior:'smooth'});
@@ -2268,14 +2411,18 @@ function ppHomeSoon(){setTimeout(()=>{try{ppHome()}catch(e){}},0)}
 function ppHome(){
   const card=document.getElementById('ppcard');if(!card)return;
   const me=document.getElementById('st-me');
-  const on=!!(window.PPBackup&&PPBackup.isOn());
+  // 两条通道都开着时，卡片显示自家电脑端（PackingProof 那条在设置里看）
+  const pdOn=!!(window.PDBackup&&PDBackup.isOn());
+  const API=pdOn?window.PDBackup:window.PPBackup;
+  const on=pdOn||!!(window.PPBackup&&PPBackup.isOn());
   card.style.display=on?'':'none';
-  const c=on&&window.PPBackup?PPBackup.config:null;
+  const c=on&&API?API.config:null;
   if(me)me.textContent=(c&&c.deviceName)||'';
   if(!on)return;
-  const paired=PPBackup.isPaired();
+  const paired=API.isPaired();
   const wait=ppPending().length;
-  const bad=(orders||[]).filter(o=>o.ppq&&!o.ppq.next&&!o.pp).length;   // 不会自动重试的
+  const QK=pdOn?'pdq':'ppq',DK=pdOn?'pd':'pp';
+  const bad=(orders||[]).filter(o=>o[QK]&&!o[QK].next&&!o[DK]).length;   // 不会自动重试的
   const pill=document.getElementById('pp-pill'),pc=document.getElementById('pp-pc');
   const msg=document.getElementById('pp-msg'),pb=document.getElementById('pp-pb');
   const pbi=document.getElementById('pp-pbi'),kill=document.getElementById('pp-kill');
@@ -2305,28 +2452,29 @@ function ppHome(){
   btns.innerHTML=paired
     ?`<button class="pri" id="pp-now" ${(wait||bad)?'':'disabled'}>立即备份</button>
       <button class="sec" id="pp-auto">${c.auto?'暂停上传':'继续上传'}</button>`
-    :`<button class="pri" id="pp-scan">⛶ 扫码连接</button>
-      <button class="sec" id="pp-manual">手填地址</button>`;
+    :(pdOn?`<button class="pri" id="pp-manual">连接电脑</button>`
+          :`<button class="pri" id="pp-scan">⛶ 扫码连接</button>
+            <button class="sec" id="pp-manual">手填地址</button>`);
   const now=document.getElementById('pp-now');
   if(now)now.onclick=async()=>{
     // 人既然主动点了，失败过的也一并重试，别让他干等退避
-    (orders||[]).forEach(o=>{if(o.ppq&&!o.pp)o.ppq.next=1});
+    (orders||[]).forEach(o=>{if(o.ppq&&!o.pp)o.ppq.next=1;if(o.pdq&&!o.pd)o.pdq.next=1});
     toast('开始备份…',2000);await ppQueueRun(true);ppQueueTick();
   };
   const au=document.getElementById('pp-auto');
   if(au)au.onclick=()=>{
-    const next=!PPBackup.config.auto;
-    PPBackup.set({auto:next});ppSync();
+    const next=!API.config.auto;
+    API.set({auto:next});pdOn?pdSync():ppSync();
     toast(next?'录完自动备份已开启':'已暂停自动上传，仍可手动点「立即备份」',2500);
     if(next)ppQueueRun(true).then(ppQueueTick);
   };
   const sc=document.getElementById('pp-scan');
   if(sc)sc.onclick=()=>{const r=document.getElementById('row-ppscan');if(r&&r.onclick)r.onclick()};
   const mn=document.getElementById('pp-manual');
-  if(mn)mn.onclick=()=>{show('store');updQuota();bkInfo();ppFocusSettings()};
+  if(mn)mn.onclick=()=>{show('store');updQuota();bkInfo();ppFocusSettings(pdOn?'pd':'pp')};
   kill.onclick=async()=>{
     if(await ask('删除这台电脑？','删除后要重新扫码才能再连上。已经备份好的录像不受影响。','删除','取消','🗑')){
-      PPBackup.unpair();ppOnline=null;ppSync();toast('已删除，可重新扫码连接');
+      API.unpair();ppOnline=null;pdOn?pdSync():ppSync();toast('已断开，可重新连接');
     }
   };
 }
@@ -2340,6 +2488,42 @@ document.getElementById('o-ppon').onchange=e=>{
   const e=document.getElementById('o-'+k);
   if(e)e.oninput=ev=>{if(window.PPBackup)PPBackup.set(k==='pphost'?{host:ev.target.value}:{deviceName:ev.target.value})};
 });
+document.getElementById('o-pdon').onchange=e=>{
+  if(window.PDBackup)PDBackup.set({on:e.target.checked});
+  pdSync();ppHeartbeat();
+};
+document.getElementById('o-pdauto').onchange=e=>{
+  if(window.PDBackup)PDBackup.set({auto:e.target.checked});ppHome();
+};
+document.getElementById('o-pdname').oninput=e=>{
+  if(window.PDBackup)PDBackup.set({deviceName:e.target.value.trim()});ppHome();
+};
+document.getElementById('o-pdhost').onchange=e=>{
+  if(window.PDBackup)PDBackup.set({host:e.target.value.trim()});
+};
+document.getElementById('row-pdpair').onclick=async()=>{
+  if(!window.PDBackup)return;
+  const host=(document.getElementById('o-pdhost').value||'').trim();
+  if(!host){toast('先填电脑端显示的地址');return}
+  try{
+    progBar('正在连接电脑，去电脑上确认一下…');
+    const r=await PDBackup.enroll(host,document.getElementById('o-pdname').value);
+    progDone();pdSync();ppHeartbeat();
+    ppQueueRun(true).then(ppQueueTick);        // 连上之前攒的，这就开始传
+    await ask('连接成功','电脑：'+((r.node&&r.node.nodeName)||r.host)+
+      '\n地址：'+r.host+'\n本机名：'+r.deviceName+
+      '\n\n以后录完会自动备份（可在上面关掉）。','知道了','','💻');
+  }catch(e){
+    progDone();
+    const m=(e&&e.message)||String(e);
+    await ask('连接失败',m,'知道了','复制错误','⚠️').then(async ok=>{if(!ok)await copy(m)});
+  }
+};
+document.getElementById('row-pdunpair').onclick=async()=>{
+  if(await ask('断开这台电脑？','断开后要重新填地址连接。已经备份好的录像不受影响。','断开','取消','🔌')){
+    PDBackup.unpair();ppOnline=null;pdSync();toast('已断开');
+  }
+};
 document.getElementById('o-ppauto').onchange=e=>{if(window.PPBackup)PPBackup.set({auto:e.target.checked});ppHome()};
 // 本机名随手存：以前只在配对那一刻读一次，填完离开页面就丢了
 document.getElementById('o-ppname').oninput=e=>{
@@ -2555,7 +2739,7 @@ window.addEventListener('beforeunload',e=>{if(cur){e.preventDefault();e.returnVa
 (async function(){
   try{await DB.open()}catch(e){toast('数据库打开失败：'+e.message,5000)}
   try{orders=(await DB.all('orders')).sort((a,b)=>b.t-a.t)}catch(e){orders=[]}
-  initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();ppSync();
+  initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();pdSync();ppSync();
   // 启动时先试一次，再按各自的退避时间排下一轮
   ppQueueRun(true).then(ppQueueTick);
   ppHeartbeat();

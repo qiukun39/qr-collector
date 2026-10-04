@@ -58,6 +58,10 @@ button,select,input,textarea{font:inherit;color:inherit}
 .status{display:flex;align-items:center;gap:9px;background:var(--card);border-radius:var(--rs);
   padding:12px 14px;margin-bottom:9px;font-size:14.5px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .status.ok{background:var(--green-s);color:#067a48}
+/* 从首页点「电脑备份」进来时，让对应的设置组闪一下，省得自己在页面里找 */
+.list.flash{animation:ppflash 1.5s ease-out}
+@keyframes ppflash{0%,22%{box-shadow:0 0 0 3px var(--blue)}100%{box-shadow:0 0 0 3px transparent}}
+@media (prefers-reduced-motion:reduce){.list.flash{animation:none;box-shadow:0 0 0 3px var(--blue)}}
 .status .sp{flex:1 1 auto}
 .status .chev{color:#b9bfc9}
 .search{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:var(--rs);
@@ -306,6 +310,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
   <div class="pad">
     <div class="status" id="st-engine"><span>📷</span><span class="sp" id="st-engine-t">摄像头未启动</span><span class="chev">›</span></div>
     <div class="status" id="st-store"><span>💾</span><span class="sp" id="st-store-t">统计中…</span><span class="chev">›</span></div>
+    <div class="status" id="st-pp" style="display:none"><span>💻</span><span class="sp" id="st-pp-t">电脑备份</span><span class="chev">›</span></div>
     <div class="search">
       <span style="color:#b4bac4">🔍</span>
       <input type="text" id="q" placeholder="输入单号或序列号搜索">
@@ -524,8 +529,8 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="hint" id="qtext">统计中…</div>
       <div class="hint" id="persist" style="margin-top:5px"></div>
     </div>
-    <div class="grp">备份到电脑（PackingProof）</div>
-    <div class="list">
+    <div class="grp" id="grp-pp">备份到电脑（PackingProof）</div>
+    <div class="list" id="list-pp">
       <div class="rowi"><span class="lab">启用局域网备份<small id="pp-sub">把录像传到同一 WiFi 下的 PackingProof 电脑端</small></span>
         <label class="sw"><input type="checkbox" id="o-ppon"><i></i></label></div>
       <div class="rowi pp-cfg" style="display:none"><span class="lab">本机显示名<small>电脑端列表里显示成这个名字，配对前先填</small></span>
@@ -2017,6 +2022,17 @@ async function scanOnce(title,tip){
   });
 }
 
+// 从首页那条状态进来时，把 PackingProof 这一组滚到眼前并短暂高亮
+function ppFocusSettings(){
+  const g=document.getElementById('grp-pp'),l=document.getElementById('list-pp');
+  if(!g||!l)return;
+  setTimeout(()=>{
+    g.scrollIntoView({block:'start',behavior:'smooth'});
+    l.classList.remove('flash');void l.offsetWidth;l.classList.add('flash');
+    setTimeout(()=>l.classList.remove('flash'),1600);
+  },60);
+}
+
 /* ===================== 路由 / 事件 ===================== */
 function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+id));
   window.scrollTo(0,0);const m=document.querySelector('.page.on');if(m)m.scrollTop=0}
@@ -2052,6 +2068,7 @@ document.getElementById('row-fields').onclick=()=>{renderRules();show('fields')}
 document.getElementById('bprint').onclick=()=>window.print();
 document.getElementById('st-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('row-store').onclick=()=>{show('store');updQuota();bkInfo()};
+document.getElementById('st-pp').onclick=()=>{show('store');updQuota();bkInfo();ppFocusSettings()};
 document.getElementById('st-engine').onclick=()=>enterRec(recType);
 function ppSync(){
   const on=!!(window.PPBackup&&PPBackup.isOn());
@@ -2067,6 +2084,20 @@ function ppSync(){
     ?('已配对'+(c.nodeName?('：'+c.nodeName):'')+'　'+c.host)
     :'把录像传到同一 WiFi 下的 PackingProof 电脑端';
   const up=document.getElementById('row-ppunpair');if(up)up.style.display=(on&&PPBackup.isPaired())?'':'none';
+  ppHome();
+}
+// 首页那条状态：开关没开就整条不出现，首页跟没这功能时一模一样
+function ppHome(){
+  const row=document.getElementById('st-pp'),t=document.getElementById('st-pp-t');
+  if(!row||!t)return;
+  const on=!!(window.PPBackup&&PPBackup.isOn());
+  row.style.display=on?'':'none';
+  if(!on)return;
+  const c=PPBackup.config,paired=PPBackup.isPaired();
+  row.classList.toggle('ok',paired);
+  t.textContent=paired
+    ?('电脑备份 · '+(c.nodeName||c.host.replace(/^https?:\/\//,'')))
+    :'电脑备份 · 未配对，点这里连接电脑';
 }
 document.getElementById('o-ppon').onchange=e=>{
   if(!window.PPBackup){toast('备份模块没加载');e.target.checked=false;return}

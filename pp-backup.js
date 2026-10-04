@@ -49,6 +49,8 @@
     deviceName: '',
     auto: false,      // 停止录像后自动上传
     nodeName: '',
+    nodeId: '',
+    webAccessUrl: '',
     accessKey: ''     // 电脑端二维码里的 ?key=，看录像网页时要用；备份接口本身不需要
   }, load());
 
@@ -175,8 +177,18 @@
   function explain(code, data) {
     switch (code) {
       case 'backup_client_upgrade_required':
-        return '电脑端版本要求更高的客户端协议（要求 '
-          + ((data && data.minimumVersion) || '?') + '），请升级 PackingProof 电脑端或联系我调整协议版本';
+        // 注意方向：是电脑端嫌「手机客户端」太旧，升级电脑端只会更严。
+        // 解决办法是把 PROTO.clientVersion / clientBuildNumber 抬到它要求的值再重新打包
+        return '电脑端要求更新的手机客户端（至少 '
+          + ((data && data.minimumVersion) || '?') + ' / build '
+          + ((data && data.minimumBuildNumber) || '?')
+          + '）。这不是你能在手机上解决的，把这条信息发给我，我抬协议版本号重新打包';
+      case 'invalid_total_bytes':
+        return '上传任务参数不对（totalBytes），协议对不上了，请反馈';
+      case 'unsupported_format':
+        return '电脑端只接收 MP4 录像，这段不是 MP4';
+      case 'storage_unavailable':
+        return '电脑端的录像存储盘不可用（没插、没就绪或空间不足），本地录像已保留，稍后重试';
       case 'enrollment_denied':
         return '电脑端拒绝了配对，请在电脑端弹出的框里点「允许」';
       case 'enrollment_approval_unavailable':
@@ -269,14 +281,31 @@
     };
 
     var r = await request('/api/mobile-backup/enroll', { method: 'POST', body: body, signed: false });
-    var cred = r && (r.deviceCredential || r.credential);
-    if (!cred) throw new Error('电脑端没有返回凭据，请确认那边的授权框点了「允许」');
+    // 凭据字段电脑端叫 deviceToken（WebServer.cs HandleBackupDeviceEnrollment 的 200 响应）。
+    // 后两个名字只是旧猜测的兜底，别删——删了万一对方版本不同就没得退
+    var cred = r && (r.deviceToken || r.deviceCredential || r.credential);
+    if (!cred) {
+      throw new Error('电脑端返回了成功，但没找到凭据字段。收到的字段：' +
+        (r ? Object.keys(r).join(', ') : '(空)'));
+    }
 
-    cfg.deviceId = deviceId;
+    cfg.deviceId = r.deviceId || deviceId;
     cfg.credential = cred;
-    cfg.deviceName = name;
+    // 电脑端可能给本机改名（重名时会加后缀），以它返回的为准
+    cfg.deviceName = r.deviceName || name;
+    cfg.nodeName = r.computerName || cfg.nodeName;
+    // 存下电脑端的 nodeId：以后它换了 IP，可以靠这个重新找回来
+    cfg.nodeId = r.computerId || (node && node.nodeId) || cfg.nodeId || '';
+    // 看录像网页的地址，受保护时自带 ?key=，比从二维码里抠更可靠
+    if (r.webAccessUrl) {
+      cfg.webAccessUrl = r.webAccessUrl;
+      try {
+        var k = new URL(r.webAccessUrl).searchParams.get('key');
+        if (k) cfg.accessKey = k;
+      } catch (e) {}
+    }
     save(cfg);
-    return { host: cfg.host, deviceId: deviceId, deviceName: name, node: node };
+    return { host: cfg.host, deviceId: cfg.deviceId, deviceName: cfg.deviceName, node: node };
   }
 
   async function capabilities() {
@@ -288,7 +317,8 @@
   /**
    * @param order    单据对象（主程序的 order）
    * @param blob     视频 Blob
-   * @param fileName 文件名
+   * @param fileName 文件名（只用于本地提示；电脑端会按
+   *                 「单号_yyyyMMdd_HHmmss_发货.mp4」自己重新命名，不用我们传的名字）
    * @param onProg   (已传字节, 总字节) => void
    */
   async function upload(order, blob, fileName, onProg) {
@@ -297,14 +327,19 @@
 
     var fileSha256 = await sha256Hex(blob);
 
+    // 电脑端 MobileBackupService.CreateOrResume 只认这三个字段，而且 totalBytes 和
+    // mimeType 都会校验（ValidateTotalBytes / ValidateMimeType）。字段名写错就是
+    // invalid_total_bytes / unsupported_format。文件名不用传——电脑端一律自己重新命名
+    var mime = (blob.type || '').split(';')[0].trim().toLowerCase() || 'video/mp4';
+    if (mime !== 'video/mp4') {
+      throw new Error('这段录像是 ' + mime + '，电脑端只收 MP4（mobile-backup-v2 限制）');
+    }
     var started = await request('/api/mobile-backup/uploads', {
       method: 'POST',
       body: {
         fileSha256: fileSha256,
-        fileName: fileName,
-        fileSizeBytes: blob.size,
-        sourceDeviceId: cfg.deviceId,
-        sourceDeviceName: cfg.deviceName
+        totalBytes: blob.size,
+        mimeType: mime
       }
     });
 

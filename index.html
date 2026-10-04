@@ -59,6 +59,29 @@ button,select,input,textarea{font:inherit;color:inherit}
   padding:12px 14px;margin-bottom:9px;font-size:14.5px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .status.ok{background:var(--green-s);color:#067a48}
 /* 从首页点「电脑备份」进来时，让对应的设置组闪一下，省得自己在页面里找 */
+/* 首页的电脑备份卡片：状态、在干什么、该点什么，都摆在首页 */
+.bkcard{background:var(--card);border-radius:var(--rs);padding:12px 13px;margin-bottom:9px;
+  box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.bkcard .hd{display:flex;align-items:center;gap:7px}
+.bkcard .hd b{font-size:14.5px}
+.bkcard .pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+.pill.on{background:var(--green-s);color:#067a48}
+.pill.off{background:#fff1e0;color:#ad5f00}
+.pill.no{background:var(--sub);color:var(--dim)}
+.pill.run{background:var(--blue-s);color:#1a63d6}
+.bkcard .pc{font-size:12.5px;color:var(--dim);margin-top:2px;word-break:break-all}
+.bkcard .msg{font-size:12.5px;margin-top:6px}
+.bkcard .msg.warn{color:#ad5f00}.bkcard .msg.ok{color:#067a48}.bkcard .msg.bad{color:var(--red)}
+.bkcard .pb{height:5px;border-radius:999px;background:var(--sub);margin-top:8px;overflow:hidden}
+.bkcard .pb i{display:block;height:100%;background:var(--blue);border-radius:999px;transition:width .25s}
+.bkcard .btns{display:flex;gap:8px;margin-top:10px}
+.bkcard .btns button{flex:1;border:0;border-radius:10px;padding:10px 6px;font-size:13.5px;
+  font-weight:600;min-height:42px;font-family:inherit}
+.bkcard .btns .pri{background:var(--blue);color:#fff}
+.bkcard .btns .sec{background:var(--sub);color:var(--fg)}
+.bkcard .btns button:disabled{background:var(--sub);color:#c3c8d0}
+.bkcard .kill{width:30px;height:30px;border:0;border-radius:9px;background:transparent;
+  color:var(--red);font-size:15px}
 .list.flash{animation:ppflash 1.5s ease-out}
 @keyframes ppflash{0%,22%{box-shadow:0 0 0 3px var(--blue)}100%{box-shadow:0 0 0 3px transparent}}
 @media (prefers-reduced-motion:reduce){.list.flash{animation:none;box-shadow:0 0 0 3px var(--blue)}}
@@ -303,14 +326,22 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 <!-- ============ 首页 ============ -->
 <section class="page on" id="p-home">
   <div class="topbar">
-    <span class="logo">打包留证</span><span class="sp"></span>
+    <span class="logo">打包留证</span><span id="st-me" style="font-size:11.5px;color:var(--dim);margin-left:7px"></span><span class="sp"></span>
     <button class="iconbtn" id="gofields" title="字段规则">🏷️</button>
     <button class="iconbtn" id="goset" title="设置">⚙️</button>
   </div>
   <div class="pad">
     <div class="status" id="st-engine"><span>📷</span><span class="sp" id="st-engine-t">摄像头未启动</span><span class="chev">›</span></div>
     <div class="status" id="st-store"><span>💾</span><span class="sp" id="st-store-t">统计中…</span><span class="chev">›</span></div>
-    <div class="status" id="st-pp" style="display:none"><span>💻</span><span class="sp" id="st-pp-t">电脑备份</span><span class="chev">›</span></div>
+    <div class="bkcard" id="ppcard" style="display:none">
+      <div class="hd"><b>电脑备份</b><span class="sp"></span>
+        <span class="pill no" id="pp-pill">未连接</span>
+        <button class="kill" id="pp-kill" title="删除这台电脑" style="display:none">🗑</button></div>
+      <div class="pc" id="pp-pc"></div>
+      <div class="msg" id="pp-msg"></div>
+      <div class="pb" id="pp-pb" style="display:none"><i id="pp-pbi" style="width:0"></i></div>
+      <div class="btns" id="pp-btns"></div>
+    </div>
     <div class="search">
       <span style="color:#b4bac4">🔍</span>
       <input type="text" id="q" placeholder="输入单号或序列号搜索">
@@ -1876,9 +1907,13 @@ async function ppSend(o,mode){
   try{
     if(!quiet)toast('正在备份到电脑…',60000);
     const r=await PPBackup.upload(o,v.blob,videoName(o)+extOf(v.blob.type),
-      (a,b)=>{if(!quiet)toast('备份到电脑 '+Math.round(a/b*100)+'%（'+kb(b)+'）',60000)});
+      (a,b)=>{
+        ppUp={id:o.id,pct:Math.round(a/b*100)};ppHome();
+        if(!quiet)toast('备份到电脑 '+ppUp.pct+'%（'+kb(b)+'）',60000);
+      });
+    ppUp=null;
     o.pp={at:Date.now(),recordId:(r&&r.recordId)||null,status:(r&&r.status)||'done'};
-    delete o.ppq;
+    delete o.ppq;ppOnline=true;
     await DB.put('orders',o);renderOrders();
     if(!quiet){
       toast('已备份到电脑'+((r&&r.alreadyCompleted)?'（电脑端已有同一个文件）':''),3000);
@@ -1886,6 +1921,7 @@ async function ppSend(o,mode){
     }
     return true;
   }catch(e){
+    ppUp=null;
     let kind0=PPBackup.classify(e);
     // 凭据失效不该让人重新扫码：地址和设备号都还在，自动重新注册一次，
     // 电脑端那边再点一次「允许」就恢复了
@@ -1904,6 +1940,7 @@ async function ppSend(o,mode){
     const tries=((o.ppq&&o.ppq.tries)||0)+1;
     o.ppq={kind:kind,msg:m,tries:tries,at:Date.now(),
            next:retry?(Date.now()+ppBackoff(tries)):0};
+    if(kind==='offline')ppOnline=false;
     await DB.put('orders',o);renderOrders();
     if(!silent){
       await ask('备份失败',m+'\n\n'+(retry
@@ -1951,7 +1988,11 @@ function ppHeartbeat(){
   if(!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()))return;
   const beat=()=>{
     if(document.visibilityState!=='visible')return;   // 后台不发，省电
-    PPBackup.heartbeat(true).catch(()=>{});            // 失败不吭声，下一拍再说
+    // 心跳成不成，正好就是「电脑在不在线」的判据，不用再单独探一次
+    PPBackup.heartbeat(true)
+      .then(()=>{if(ppOnline!==true){ppOnline=true;ppHome();
+                   ppQueueRun(true).then(ppQueueTick)}})   // 刚恢复就把攒的传掉
+      .catch(()=>{if(ppOnline!==false){ppOnline=false;ppHome()}});
   };
   beat();
   ppHbTimer=setInterval(beat,15000);                   // 官方端也是 15 秒
@@ -2154,7 +2195,6 @@ document.getElementById('row-fields').onclick=()=>{renderRules();show('fields')}
 document.getElementById('bprint').onclick=()=>window.print();
 document.getElementById('st-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('row-store').onclick=()=>{show('store');updQuota();bkInfo()};
-document.getElementById('st-pp').onclick=()=>{show('store');updQuota();bkInfo();ppFocusSettings()};
 document.getElementById('st-engine').onclick=()=>enterRec(recType);
 function ppSync(){
   const on=!!(window.PPBackup&&PPBackup.isOn());
@@ -2174,22 +2214,73 @@ function ppSync(){
   if(typeof ppHeartbeat==='function')ppHeartbeat();
 }
 // 首页那条状态：开关没开就整条不出现，首页跟没这功能时一模一样
+let ppOnline=null;      // null=还不知道；true/false=最近一次心跳的结果
+let ppUp=null;          // 正在传的那一单 {id,pct}
 function ppHomeSoon(){setTimeout(()=>{try{ppHome()}catch(e){}},0)}
 function ppHome(){
-  const row=document.getElementById('st-pp'),t=document.getElementById('st-pp-t');
-  if(!row||!t)return;
+  const card=document.getElementById('ppcard');if(!card)return;
+  const me=document.getElementById('st-me');
   const on=!!(window.PPBackup&&PPBackup.isOn());
-  row.style.display=on?'':'none';
+  card.style.display=on?'':'none';
+  const c=on&&window.PPBackup?PPBackup.config:null;
+  if(me)me.textContent=(c&&c.deviceName)||'';
   if(!on)return;
-  const c=PPBackup.config,paired=PPBackup.isPaired();
-  row.classList.toggle('ok',paired);
-  const wait=(typeof ppPending==='function')?ppPending().length:0;
-  t.textContent=paired
-    ?('电脑备份 · '+(c.nodeName||c.host.replace(/^https?:\/\//,''))
-      +(wait?('　待传 '+wait+' 单'):''))
-    :'电脑备份 · 未配对，点这里连接电脑';
-  // 有东西没传出去就别显示成一切正常的绿色
-  if(wait)row.classList.remove('ok');
+  const paired=PPBackup.isPaired();
+  const wait=ppPending().length;
+  const bad=(orders||[]).filter(o=>o.ppq&&!o.ppq.next&&!o.pp).length;   // 不会自动重试的
+  const pill=document.getElementById('pp-pill'),pc=document.getElementById('pp-pc');
+  const msg=document.getElementById('pp-msg'),pb=document.getElementById('pp-pb');
+  const pbi=document.getElementById('pp-pbi'),kill=document.getElementById('pp-kill');
+  const btns=document.getElementById('pp-btns');
+
+  pc.textContent=paired?((c.nodeName||'电脑端')+' · '+String(c.host||'').replace(/^https?:\/\//,'')):'';
+  pc.style.display=paired?'':'none';
+  kill.style.display=paired?'':'none';
+
+  const state=!paired?'no':(ppUp?'run':(ppOnline===false?'off':'on'));
+  pill.className='pill '+state;
+  pill.textContent={no:'未连接',on:'在线',off:'离线',run:'备份中'}[state];
+
+  pb.style.display=ppUp?'':'none';
+  if(ppUp)pbi.style.width=Math.max(2,ppUp.pct)+'%';
+
+  msg.className='msg';
+  if(!paired)msg.textContent='扫电脑端的二维码后自动备份';
+  else if(ppUp)msg.textContent='正在备份 · '+ppUp.pct+'%'+(wait>1?('　还剩 '+(wait-1)+' 单'):'');
+  else if(bad){msg.textContent=bad+' 单备份失败，点开那一单看原因';msg.classList.add('bad')}
+  else if(ppOnline===false&&wait){msg.textContent='电脑离线，'+wait+' 单等待自动续传';msg.classList.add('warn')}
+  else if(ppOnline===false){msg.textContent='电脑离线，开机后自动恢复';msg.classList.add('warn')}
+  else if(wait){msg.textContent='还有 '+wait+' 单等待备份';msg.classList.add('warn')}
+  else{msg.textContent='备份完成'+(c.auto?' · 录完自动传':'');msg.classList.add('ok')}
+
+  // 按钮只显示当下该点的那两个
+  btns.innerHTML=paired
+    ?`<button class="pri" id="pp-now" ${(wait||bad)?'':'disabled'}>立即备份</button>
+      <button class="sec" id="pp-auto">${c.auto?'暂停上传':'继续上传'}</button>`
+    :`<button class="pri" id="pp-scan">⛶ 扫码连接</button>
+      <button class="sec" id="pp-manual">手填地址</button>`;
+  const now=document.getElementById('pp-now');
+  if(now)now.onclick=async()=>{
+    // 人既然主动点了，失败过的也一并重试，别让他干等退避
+    (orders||[]).forEach(o=>{if(o.ppq&&!o.pp)o.ppq.next=1});
+    toast('开始备份…',2000);await ppQueueRun(true);ppQueueTick();
+  };
+  const au=document.getElementById('pp-auto');
+  if(au)au.onclick=()=>{
+    const next=!PPBackup.config.auto;
+    PPBackup.set({auto:next});ppSync();
+    toast(next?'录完自动备份已开启':'已暂停自动上传，仍可手动点「立即备份」',2500);
+    if(next)ppQueueRun(true).then(ppQueueTick);
+  };
+  const sc=document.getElementById('pp-scan');
+  if(sc)sc.onclick=()=>{const r=document.getElementById('row-ppscan');if(r&&r.onclick)r.onclick()};
+  const mn=document.getElementById('pp-manual');
+  if(mn)mn.onclick=()=>{show('store');updQuota();bkInfo();ppFocusSettings()};
+  kill.onclick=async()=>{
+    if(await ask('删除这台电脑？','删除后要重新扫码才能再连上。已经备份好的录像不受影响。','删除','取消','🗑')){
+      PPBackup.unpair();ppOnline=null;ppSync();toast('已删除，可重新扫码连接');
+    }
+  };
 }
 document.getElementById('o-ppon').onchange=e=>{
   if(!window.PPBackup){toast('备份模块没加载');e.target.checked=false;return}
@@ -2201,7 +2292,10 @@ document.getElementById('o-ppon').onchange=e=>{
   const e=document.getElementById('o-'+k);
   if(e)e.oninput=ev=>{if(window.PPBackup)PPBackup.set(k==='pphost'?{host:ev.target.value}:{deviceName:ev.target.value})};
 });
-document.getElementById('o-ppauto').onchange=e=>{if(window.PPBackup)PPBackup.set({auto:e.target.checked})};
+document.getElementById('o-ppauto').onchange=e=>{if(window.PPBackup)PPBackup.set({auto:e.target.checked});ppHome()};
+// 本机名随手存：以前只在配对那一刻读一次，填完离开页面就丢了
+document.getElementById('o-ppname').oninput=e=>{
+  if(window.PPBackup)PPBackup.set({deviceName:e.target.value.trim()});ppHome();};
 async function ppDoPair(connectText){
   if(!window.PPBackup)return;
   try{

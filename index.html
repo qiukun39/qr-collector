@@ -104,6 +104,10 @@ ul.ords .bar{width:4px;align-self:stretch;border-radius:3px;background:var(--blu
 ul.ords .bar.ret{background:var(--orange)}
 ul.ords .bar.scan{background:var(--teal)}
 .mini.t{background:#e2f7f5;color:#07746c}
+/* 详情页的视频：黑底圆角，配上封面。没封面时浏览器会画一块灰底加个巨大的
+   播放钮，在手机上很突兀 */
+.ovid{width:100%;display:block;border-radius:10px;background:#000;
+  aspect-ratio:16/9;object-fit:contain}
 .thumb{position:relative;flex:0 0 auto;width:74px;height:56px;border-radius:9px;overflow:hidden;background:#e7e9ee}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb .none{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#b4bac4;font-size:17px}
@@ -1492,6 +1496,33 @@ function flashFx(){const v=document.getElementById('cam');
 function dupFx(){const w=document.getElementById('p-rec');
   w.classList.remove('dupfx');void w.offsetWidth;w.classList.add('dupfx')}
 let bigTimer=null,bigFade=null;
+// 从视频首帧抓一张封面。只在这一单没有抓拍照片时才做。
+function grabPoster(video,o){
+  let done=false;
+  const take=()=>{
+    if(done)return;
+    const w=video.videoWidth,h=video.videoHeight;
+    if(!w||!h)return;
+    done=true;
+    try{
+      const k=Math.min(1,480/Math.max(w,h));
+      const c=document.createElement('canvas');
+      c.width=Math.round(w*k);c.height=Math.round(h*k);
+      c.getContext('2d').drawImage(video,0,0,c.width,c.height);
+      const url=c.toDataURL('image/jpeg',0.72);
+      video.poster=url;
+      o.thumb=url;
+      DB.put('orders',o).then(()=>renderOrders()).catch(()=>{});
+    }catch(e){}
+  };
+  video.addEventListener('loadeddata',()=>{
+    // 跳到 0.1 秒再抓：第 0 帧有时候是黑的
+    try{video.currentTime=Math.min(0.1,(video.duration||1)/2)}catch(e){take()}
+  },{once:true});
+  video.addEventListener('seeked',take,{once:true});
+  setTimeout(take,2500);   // 兜底：seek 不触发时也别一直没封面
+}
+
 function showBig(text,sub,dup){
   const e=document.getElementById('bigv');
   document.getElementById('bigvV').textContent=text;
@@ -1786,7 +1817,9 @@ async function openOrder(o){
   if(vurl){URL.revokeObjectURL(vurl);vurl=null}
   const items=o.items.filter(i=>!i.snap),snaps=o.items.filter(i=>i.snap);
   body.innerHTML=`
-    ${o.vid&&o.type!=='scan'?`<div class="card" style="margin-top:12px;padding:10px"><video id="ovid" controls playsinline style="width:100%"></video></div>`:''}
+    ${o.vid&&o.type!=='scan'?`<div class="card" style="margin-top:12px;padding:10px">
+      <video id="ovid" controls playsinline preload="metadata" class="ovid"
+        ${o.thumb?`poster="${o.thumb}"`:''}></video></div>`:''}
     <div class="card">
       <div class="hint">${({out:'打包发货',ret:'拆包退货',scan:'扫码盘点'}[o.type||'out'])}　${ts(o.t)}${
         o.type==='scan'?'':('　时长 '+mmss(o.dur||0)+'　'+(o.q||'')+'p'+(o.audio?' · 有声':' · 静音')+(o.lm?' · 已带水印':''))}<br>
@@ -1822,7 +1855,16 @@ async function openOrder(o){
     <div style="height:14px"></div>`;
   document.getElementById('viewer').classList.add('on');
   if(o.vid){const v=await DB.get('videos',o.id);
-    if(v&&v.blob){vurl=URL.createObjectURL(v.blob);const e=document.getElementById('ovid');if(e)e.src=vurl}}
+    if(v&&v.blob){
+      vurl=URL.createObjectURL(v.blob);
+      const e=document.getElementById('ovid');
+      if(e){
+        e.src=vurl;
+        // 这一单没抓拍过照片就没有封面。从视频首帧抓一张，
+        // 顺手也补进列表的缩略图，省得列表里一直是个灰方块
+        if(!o.thumb)grabPoster(e,o);
+      }
+    }}
   document.getElementById('osaveall').onclick=()=>saveAll(o);
   document.getElementById('ocopy').onclick=()=>copy(items.map(i=>i.v).join('\n'));
   const ov=document.getElementById('ovideo');if(ov)ov.onclick=async()=>{const v=await DB.get('videos',o.id);

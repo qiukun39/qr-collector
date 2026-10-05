@@ -602,6 +602,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="rowi pd-cfg" id="row-pdpair" style="display:none"><span class="lab" style="color:var(--blue)">连接电脑<small>点完到电脑上确认一下</small></span><span class="chev">›</span></div>
       <div class="rowi pd-cfg" style="display:none"><span class="lab">录完自动备份<small>停止录像后自动上传，失败会自动重试</small></span>
         <label class="sw"><input type="checkbox" id="o-pdauto"><i></i></label></div>
+      <div class="rowi pd-cfg" id="row-pdfind" style="display:none"><span class="lab">重新查找电脑<small>电脑换了 IP 时用；平时连不上会自动找</small></span><span class="chev">›</span></div>
       <div class="rowi pd-cfg" id="row-pdunpair" style="display:none"><span class="lab" style="color:var(--red)">断开这台电脑</span><span class="chev">›</span></div>
     </div>
 
@@ -2064,7 +2065,18 @@ async function pdSend(o,mode){
         return await pdSend(o,mode);
       }catch(e2){}
     }
-    delete o.__pdre;
+    // 连不上多半是电脑换了 IP（路由器重启、换 WiFi）。先广播找一次，
+    // 找到新地址就重试，别让人去手动改地址
+    if(kind==='offline'&&!o.__pdfind&&PDBackup.canDiscover()){
+      o.__pdfind=1;
+      try{
+        if(!quiet)progBar('电脑地址好像变了，正在重新查找…');
+        const moved=await PDBackup.rediscover();
+        progDone();
+        if(moved){pdSync();return await pdSend(o,mode)}
+      }catch(e3){progDone()}
+    }
+    delete o.__pdre;delete o.__pdfind;
     const m=(e&&e.message)||String(e);
     const retry=PDBackup.autoRetry(kind);
     const tries=((o.pdq&&o.pdq.tries)||0)+1;
@@ -2205,7 +2217,7 @@ async function ppQueueRun(force){
     }
   }finally{ppRunning=false}
 }
-let ppHbTimer=0;
+let ppHbTimer=0,lastFind=0;
 function ppHeartbeat(){
   clearInterval(ppHbTimer);
   const pdOn=!!(window.PDBackup&&PDBackup.isOn()&&PDBackup.isPaired());
@@ -2215,7 +2227,19 @@ function ppHeartbeat(){
     if(document.visibilityState!=='visible')return;   // 后台不发，省电
     if(pdOn)PDBackup.heartbeat(true)
       .then(()=>{if(ppOnline!==true){ppOnline=true;ppHome();ppQueueRun(true).then(ppQueueTick)}})
-      .catch(()=>{if(!ppOn&&ppOnline!==false){ppOnline=false;ppHome()}});
+      .catch(async()=>{
+        if(!ppOn&&ppOnline!==false){ppOnline=false;ppHome()}
+        // 心跳连不上就顺手找一次。连续找太勤没意义，隔 60 秒一次
+        if(PDBackup.canDiscover()&&Date.now()-lastFind>60000){
+          lastFind=Date.now();
+          try{
+            if(await PDBackup.rediscover()){
+              pdSync();toast('电脑换了地址，已自动连上',3000);
+              ppOnline=true;ppHome();ppQueueRun(true).then(ppQueueTick);
+            }
+          }catch(e){}
+        }
+      });
     if(!ppOn)return;
     // 心跳成不成，正好就是「电脑在不在线」的判据，不用再单独探一次
     PPBackup.heartbeat(true)
@@ -2583,6 +2607,32 @@ async function pdDoPair(connectText){
     await ask('连接失败',m,'知道了','复制错误','⚠️').then(async ok=>{if(!ok)await copy(m)});
   }
 }
+document.getElementById('row-pdfind').onclick=async()=>{
+  if(!window.PDBackup)return;
+  if(!PDBackup.canDiscover()){
+    await ask('网页版用不了','广播查找要用到系统网络接口，只有 App 版能用。\n\n' +
+      '网页版请手填电脑端界面上显示的地址。','知道了','','ℹ️');
+    return;
+  }
+  progBar('正在局域网里查找电脑…');
+  try{
+    const hosts=await PDBackup.discover(2000);
+    progDone();
+    if(!hosts.length){
+      await ask('没找到','确认电脑上的装箱台正在运行，而且手机和电脑连的是同一个 WiFi。\n\n' +
+        '有些路由器开了「AP 隔离」会挡住这种查找，那就手填地址。','知道了','','🔍');
+      return;
+    }
+    const moved=await PDBackup.rediscover();
+    pdSync();
+    await ask(moved?'找到了，地址已更新':'找到了，地址没变',
+      hosts.map(h=>(h.nodeName||'电脑')+'　'+h.host).join('\n'),'知道了','','💻');
+    if(moved)ppQueueRun(true).then(ppQueueTick);
+  }catch(e){
+    progDone();
+    await ask('查找失败',(e&&e.message)||String(e),'知道了','','⚠️');
+  }
+};
 document.getElementById('row-pdunpair').onclick=async()=>{
   if(await ask('断开这台电脑？','断开后要重新填地址连接。已经备份好的录像不受影响。','断开','取消','🔌')){
     PDBackup.unpair();ppOnline=null;pdSync();toast('已断开');

@@ -19,6 +19,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // 自写插件必须在 super.onCreate 之前注册
         registerPlugin(MediaSavePlugin.class);
+        registerPlugin(LanDiscoverPlugin.class);
         super.onCreate(savedInstanceState);
 
         // 打包台上手机长时间亮屏，避免录像中途熄屏

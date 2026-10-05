@@ -391,6 +391,50 @@
     });
   }
 
+  /* ---------------- 换了 IP 自己找回来 ---------------- */
+
+  /**
+   * 广播找电脑端。靠配对时记下的 nodeId 认人，不认 IP——
+   * 路由器重启、换 WiFi、DHCP 续租失败之后电脑的地址就变了，
+   * 没有这一步只能让人重新扫码。
+   *
+   * 只有 App 版能用：浏览器发不了 UDP 广播。
+   */
+  function discoverPlugin() {
+    try {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LanDiscover;
+    } catch (e) { return null; }
+  }
+
+  async function discover(timeoutMs) {
+    var p = discoverPlugin();
+    if (!p) return [];
+    try {
+      var r = await p.discover({ timeoutMs: timeoutMs || 1200, nodeId: cfg.nodeId || '' });
+      return (r && r.hosts) || [];
+    } catch (e) { return []; }
+  }
+
+  /**
+   * 连不上时自己找一次。找到了就把新地址存下来并返回 true。
+   * 没配过对（没有 nodeId）就不找——那种情况下找到了也不知道是不是该连的那台。
+   */
+  async function rediscover() {
+    if (!cfg.nodeId) return false;
+    var hosts = await discover(1500);
+    for (var i = 0; i < hosts.length; i++) {
+      var h = hosts[i];
+      if (!h || !h.host) continue;
+      if (String(h.nodeId || '').toLowerCase() !== String(cfg.nodeId).toLowerCase()) continue;
+      if (h.host === cfg.host) return false;   // 地址没变，问题不在这儿
+      cfg.host = h.host;
+      if (h.nodeName) cfg.nodeName = h.nodeName;
+      save(cfg);
+      return true;
+    }
+    return false;
+  }
+
   /* ---------------- 失败分类 ---------------- */
 
   // 和电脑端 PROTOCOL.md 第 5 节那张表一一对应。两端判据必须一致，
@@ -444,6 +488,9 @@
     enroll: enroll,
     reEnroll: reEnroll,
     heartbeat: heartbeat,
+    discover: discover,
+    rediscover: rediscover,
+    canDiscover: function () { return !!discoverPlugin(); },
     upload: upload,
     classify: classify,
     autoRetry: autoRetry,

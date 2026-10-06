@@ -1436,6 +1436,18 @@ async function startOrder(no,opt){
   toast(scan?('开始任务：'+no):('开录：'+no),2200);
   const tip=(!scan&&opts.tiptext&&opts.tiptext.trim())?('。'+opts.tiptext.trim()):'';
   say((scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像'))+tip,true);
+  // 面单这一帧单独拍一张，当这一单的封面。
+  // 发多个店铺时每家的面单长相不同，看封面就知道是哪家；
+  // 用第一个商品码那张反而看不出区别
+  if(!scan&&cur&&cur.photo){
+    const s0=await shoot([ts(Date.now()),no]);
+    if(s0&&s0.blob){
+      const pid=cur.id+'#wb';
+      await DB.put('photos',{id:pid,blob:s0.blob});
+      cur.wb={ph:pid,psize:s0.size,t:Date.now()};
+      cur.thumb=s0.thumb;
+    }
+  }
   updUI();renderRecItems();
   clearInterval(durTimer);durTimer=setInterval(tickDur,500);
   clearTimeout(maxTimer);
@@ -1463,6 +1475,7 @@ async function stopOrder(silent){
   if(wake){try{await wake.release()}catch(e){}wake=null}
   if(blob&&blob.size){await DB.put('videos',{id:o.id,blob});o.vid=true;o.vsize=blob.size;o.vmime=blob.type}
   else{o.vid=false;o.vsize=0}
+  // 封面优先用面单那张（startOrder 里拍的）；没有才退回第一个商品码
   if(!o.thumb&&o.items.length)o.thumb=o.items[0].thumb||null;
   await DB.put('orders',o);orders.unshift(o);
   hideBig();closeSheet();
@@ -1488,6 +1501,7 @@ async function discardOrder(){
   await finishRec();rec=null;chunks=[];stopLivePipe();
   if(wake){try{await wake.release()}catch(e){}wake=null}
   for(const it of o.items)if(it.ph)await DB.del('photos',it.ph);
+  if(o.wb&&o.wb.ph)await DB.del('photos',o.wb.ph);
   updUI();renderRecItems();sfx('bad');toast('已丢弃');say('已丢弃',true);
 }
 
@@ -1878,6 +1892,7 @@ async function openOrder(o){
       '确认删除','保留','🗑️'))return;
     await DB.del('orders',o.id);if(o.vid)await DB.del('videos',o.id);
     for(const it of o.items)if(it.ph)await DB.del('photos',it.ph);
+  if(o.wb&&o.wb.ph)await DB.del('photos',o.wb.ph);
     orders=orders.filter(x=>x.id!==o.id);closeViewer();renderOrders();updQuota();toast('已删除')};
   body.querySelectorAll('img[data-ph]').forEach(im=>im.onclick=async()=>{
     const id=im.dataset.ph;if(!id)return;const p=await DB.get('photos',id);
@@ -2019,6 +2034,14 @@ async function pdFiles(o){
   const v=await DB.get('videos',o.id);
   if(v&&v.blob)out.video={blob:v.blob,name:videoName(o)+extOf(v.blob.type)};
   let n=0;
+  // 面单那张放最前面：电脑端拿第一张当列表封面
+  if(o.wb&&o.wb.ph){
+    const w=await DB.get('photos',o.wb.ph);
+    if(w&&w.blob){
+      n++;
+      out.photos.push({blob:w.blob,name:'01.jpg',code:o.no||'',takenAt:o.wb.t||o.t});
+    }
+  }
   for(const it of (o.items||[])){
     if(!it.ph)continue;
     const p=await DB.get('photos',it.ph);

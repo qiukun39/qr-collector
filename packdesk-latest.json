@@ -1,9 +1,9 @@
 {
   "_说明": "装箱台的版本清单。电脑端每 6 小时读一次这个文件来判断有没有新版。放在公开站点上是因为电脑端仓库是私有的，GitHub 接口要令牌，而令牌不能塞进发出去的程序里。",
   "desktop": {
-    "version": "0.9.0",
+    "version": "0.9.1",
     "page": "https://github.com/qiukun39/packdesk-desktop/releases/latest",
-    "notes": "行尾「…」菜单：编辑信息、删到回收站；能导入以前用 PutPack 录的视频"
+    "notes": "列表加排序：最新/最早/最大在前"
   },
   "app": {
     "version": "3.5",

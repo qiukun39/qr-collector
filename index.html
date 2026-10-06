@@ -732,7 +732,41 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 /* ===================== 配置 ===================== */
 const K={rul:'pk.rules',opt:'pk.opts',bk:'pk.lastbackup'};
 const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
-const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const lsSet=(k,v)=>{
+  let ok=true;
+  try{localStorage.setItem(k,JSON.stringify(v))}catch(e){ok=false}
+  if(k===K.opt)backupOpts(v);     // 再存一份到应用文件里，不怕被回收
+  return ok;
+};
+// 设置的第二份：写进应用私有目录。localStorage 会被系统回收、写盘也是异步的，
+// 这份不会。去掉这个功能不影响主流程——读不到就当没有
+let bkTimer=0;
+function backupOpts(v){
+  // NATIVE / CapP 定义在后面，万一时序变了别把整个保存流程带崩
+  if(typeof NATIVE==='undefined'||typeof CapP!=='function')return;
+  const P=NATIVE&&CapP();
+  if(!(P&&P.Filesystem))return;
+  clearTimeout(bkTimer);
+  bkTimer=setTimeout(()=>{
+    P.Filesystem.writeFile({path:'settings.json',directory:'DATA',encoding:'utf8',
+      data:JSON.stringify({savedAt:Date.now(),opts:v})}).catch(()=>{});
+  },400);
+}
+async function restoreOpts(){
+  const P=NATIVE&&CapP();
+  if(!(P&&P.Filesystem))return;
+  try{
+    const raw=lsGet(K.opt,null);
+    if(raw&&Object.keys(raw).length)return;   // localStorage 还在就不动它
+    const r=await P.Filesystem.readFile({path:'settings.json',directory:'DATA',encoding:'utf8'});
+    const d=JSON.parse(r.data||'{}');
+    if(d&&d.opts&&Object.keys(d.opts).length){
+      Object.assign(opts,d.opts);
+      localStorage.setItem(K.opt,JSON.stringify(opts));
+      toast('设置被系统清理过，已从备份恢复',3500);
+    }
+  }catch(e){}
+}
 const DEF_RULES=[
   {id:1,col:'客户零件号',pattern:'(?:^|\\x1d|<GS>)241([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:false,
    sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
@@ -1434,8 +1468,10 @@ async function startOrder(no,opt){
   hideBig();
   sfx('start');
   toast(scan?('开始任务：'+no):('开录：'+no),2200);
-  const tip=(!scan&&opts.tiptext&&opts.tiptext.trim())?('。'+opts.tiptext.trim()):'';
-  say((scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像'))+tip,true);
+  // 提醒词念在最前面。以前拼在单号后面，而 13 位单号逐字念要 8 秒左右，
+  // 操作员这期间一扫商品码，后半截就被新播报冲掉——提醒永远是最先被牺牲的
+  const tip=(!scan&&opts.tiptext&&opts.tiptext.trim())?(opts.tiptext.trim()+'。'):'';
+  say(tip+(scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像')),true);
   // 面单这一帧单独拍一张，当这一单的封面。
   // 发多个店铺时每家的面单长相不同，看封面就知道是哪家；
   // 用第一个商品码那张反而看不出区别
@@ -2763,8 +2799,8 @@ document.getElementById('row-ppunpair').onclick=async()=>{
 };
 document.getElementById('row-ttstest').onclick=()=>{
   if(!opts.tts){toast('先打开语音播报');return}
-  const tip=(opts.tiptext&&opts.tiptext.trim())?('。'+opts.tiptext.trim()):'';
-  say('开始录像，单号 S F 5 1 4 0'+tip,true);toast('已试听')};
+  const tip=(opts.tiptext&&opts.tiptext.trim())?(opts.tiptext.trim()+'。'):'';
+  say(tip+'开始录像，单号 S F 5 1 4 0',true);toast('已试听')};
 document.getElementById('row-ttsdiag').onclick=async()=>{
   const el=document.getElementById('ttsdiag');
   const sup=(NATIVE&&nativeTTS())?true:('speechSynthesis' in window);
@@ -2935,6 +2971,7 @@ window.addEventListener('beforeunload',e=>{if(cur){e.preventDefault();e.returnVa
 (async function(){
   try{await DB.open()}catch(e){toast('数据库打开失败：'+e.message,5000)}
   try{orders=(await DB.all('orders')).sort((a,b)=>b.t-a.t)}catch(e){orders=[]}
+  await restoreOpts();
   initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();pdSync();ppSync();
   // 启动时先试一次，再按各自的退避时间排下一轮
   ppQueueRun(true).then(ppQueueTick);

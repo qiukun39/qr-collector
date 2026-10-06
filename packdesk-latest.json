@@ -1,0 +1,12 @@
+{
+  "_说明": "装箱台的版本清单。电脑端每 6 小时读一次这个文件来判断有没有新版。放在公开站点上是因为电脑端仓库是私有的，GitHub 接口要令牌，而令牌不能塞进发出去的程序里。",
+  "desktop": {
+    "version": "0.8.0",
+    "page": "https://github.com/qiukun39/packdesk-desktop/releases/latest",
+    "notes": "界面不再抖、二维码不再每 2 秒换一张；加了检查更新"
+  },
+  "app": {
+    "version": "3.5",
+    "url": "https://qiukun39.github.io/qr-collector/packdesk-3.5.apk"
+  }
+}

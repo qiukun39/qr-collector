@@ -219,6 +219,12 @@
     return node;
   }
 
+  // 清掉连接信息，但留着 deviceId——重新连同一台电脑时它能认出是老设备
+  function forget() {
+    cfg.host = ''; cfg.credential = ''; cfg.nodeId = ''; cfg.nodeName = '';
+    save(cfg);
+  }
+
   function newDeviceId() {
     return 'pd-' + hex(crypto.getRandomValues(new Uint8Array(8)));
   }
@@ -260,6 +266,10 @@
     return await enroll(cfg.host, cfg.deviceName, '');
   }
 
+  /**
+   * 心跳。返回里带 paired 字段——电脑端那边把这台手机断开之后，
+   * 靠它才能知道自己被踢了，否则会一直以为连着，直到下次上传才失败。
+   */
   async function heartbeat(connected) {
     if (!cfg.host || !cfg.deviceId) return null;
     return await request('/api/pd/heartbeat', {
@@ -479,10 +489,18 @@
     isOn: function () { return !!cfg.on; },
     isPaired: function () { return !!(cfg.host && cfg.credential); },
     set: function (patch) { Object.assign(cfg, patch || {}); save(cfg); return cfg; },
-    unpair: function () {
-      cfg.host = ''; cfg.credential = ''; cfg.nodeId = ''; cfg.nodeName = '';
-      save(cfg);
+    // 先告诉电脑端一声再清本地。不通也照样清——人点了断开就是要断开，
+    // 不能因为电脑关着就卡在那儿
+    unpair: async function () {
+      if (cfg.host && cfg.credential) {
+        try {
+          await request('/api/pd/unpair', { method: 'POST', body: {} });
+        } catch (e) {}
+      }
+      forget();
     },
+    // 只清本地，不通知对方。电脑端主动踢我们时用这个
+    forgetLocal: forget,
     parseConnect: parseConnect,
     probe: probe,
     enroll: enroll,

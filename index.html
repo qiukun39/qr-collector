@@ -462,7 +462,8 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     <div class="list">
       <div class="rowi"><span class="lab">扫码规则<small id="wbdesc"></small></span>
         <select id="o-wbrule">
-          <option value="cn">中国大陆快递面单</option>
+          <option value="cn">中国大陆快递面单（只认条形码）</option>
+          <option value="cn2">中国大陆快递面单（条码和二维码都认）</option>
           <option value="i1d">国际一维码</option>
           <option value="i2d">国际二维码</option>
           <option value="custom">自定义规则</option>
@@ -1209,16 +1210,24 @@ function lenRange(){
 }
 function splitList(s){return String(s||'').split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean)}
 // 面单判定：返回 true 才认作快递单号
+// 能被「提取字段」规则命中的，就是商品码，不该当成面单。
+// 按内容区分比按码制一刀切准：面单上的二维码本来就该能扫
+function isProductCode(t){
+  try{return !!purify(t).matched}catch(e){return false}
+}
 function wbMatch(t,fmt){
   fmt=fmtName(fmt);
   const r=opts.wbrule,len=t.length;
   if(r==='any')return true;
   if(r==='cn')  return FMTCN.test(fmt||'')&&len>=12&&len<=18&&/^[0-9A-Za-z-]+$/.test(t);
+  if(r==='cn2') return (FMTCN.test(fmt||'')||FMT2D.test(fmt||''))&&len>=8&&len<=40
+                       &&/^[0-9A-Za-z\-_.]+$/.test(t)&&!isProductCode(t);
   if(r==='i1d') return FMT1D.test(fmt||'')&&len>=8&&len<=40;
-  if(r==='i2d') return FMT2D.test(fmt||'')&&len>=6&&len<=64;
+  if(r==='i2d') return FMT2D.test(fmt||'')&&len>=6&&len<=64&&!isProductCode(t);
   if(r==='custom'){
     if(opts.cfmt==='1d'&&!FMT1D.test(fmt||''))return false;
     if(opts.cfmt==='2d'&&!FMT2D.test(fmt||''))return false;
+    if(opts.cfmt!=='1d'&&FMT2D.test(fmt||'')&&isProductCode(t))return false;
     const [lo,hi]=lenRange();
     if(len<lo||len>hi)return false;
     const pre=splitList(opts.cpre),exc=splitList(opts.cexc);
@@ -1333,13 +1342,28 @@ async function loop(){
 /* ===================== 指令 / 分发 ===================== */
 function parseCmd(t){const m=String(t).trim().match(/^\[CMD:([A-Z]+)(\d*)\]$/i);
   return m?{name:m[1].toUpperCase(),arg:m[2]===''?null:+m[2]}:null}
+// 为什么被过滤掉——光说「不符合规则」，人根本不知道该去动哪个设置
+function skipWhy(text,fmt){
+  if(isScan())return '';
+  const f=fmtName(fmt)||'';
+  if(FMT2D.test(f)&&(opts.wbrule==='cn'||(opts.wbrule==='custom'&&opts.cfmt==='1d'))){
+    return '这是二维码，当前面单规则只认条形码（设置里可改成「条码和二维码都认」）';
+  }
+  if(FMT1D.test(f)&&opts.wbrule==='i2d')return '这是条形码，当前面单规则只认二维码';
+  if(isProductCode(text))return '这像商品码，不是面单';
+  const len=String(text).length;
+  if(opts.wbrule==='cn'&&(len<12||len>18))return '长度 '+len+' 位，不在面单规则的 12-18 位之内';
+  return '';
+}
 async function handle(text,fmt){
   const kind=classify(text,fmt);
   if(kind==='skip'){
     if(opts.skiptip){
       sfx('dup');
+      const why=skipWhy(text,fmt);
       toast(isScan()?('已忽略（不符合盘点识别规则）：'+String(text).slice(0,24))
-                    :('已过滤（不符合扫码规则）：'+String(text).slice(0,24)),2000);
+                    :('已过滤：'+String(text).slice(0,24)+(why?('　'+why):'')),
+            why?3600:2000);
     }
     return;
   }

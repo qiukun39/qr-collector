@@ -1,9 +1,9 @@
 {
   "_说明": "装箱台的版本清单。电脑端每 6 小时读一次这个文件来判断有没有新版。放在公开站点上是因为电脑端仓库是私有的，GitHub 接口要令牌，而令牌不能塞进发出去的程序里。",
   "desktop": {
-    "version": "0.10.1",
+    "version": "0.10.2",
     "page": "https://github.com/qiukun39/packdesk-desktop/releases/latest",
-    "notes": "搜索框光标不再跳到最前；单号和序列号点一下就复制"
+    "notes": "录像列表加了日期筛选：今天 / 近 7 天 / 近 30 天 / 自定义"
   },
   "app": {
     "version": "3.9",

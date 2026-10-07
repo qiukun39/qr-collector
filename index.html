@@ -1540,11 +1540,15 @@ async function stopOrder(silent){
   await DB.put('orders',o);orders.unshift(o);
   hideBig();closeSheet();
   updUI();renderRecItems();renderOrders();updQuota();
-  if(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()&&PPBackup.config.auto&&o.vid){
-    // 不挡住停止流程，后台传。两条通道各按各的开关走
+  // 两条通道各判各的。以前外层写的是 PackingProof 的条件，
+  // 结果只开自家电脑端时整个块被跳过，录完根本不会自动传
+  const pdAuto=!!(window.PDBackup&&PDBackup.isOn()&&PDBackup.isPaired()&&PDBackup.config.auto);
+  const ppAuto=!!(window.PPBackup&&PPBackup.isOn()&&PPBackup.isPaired()&&PPBackup.config.auto&&o.vid);
+  if(pdAuto||ppAuto){
+    // 不挡住停止流程，后台传
     setTimeout(async()=>{
-      if(window.PDBackup&&PDBackup.isOn()&&PDBackup.config.auto)await pdSend(o,'auto');
-      if(window.PPBackup&&PPBackup.isOn()&&PPBackup.config.auto)await ppSend(o,'auto');
+      if(pdAuto)await pdSend(o,'auto');
+      if(ppAuto)await ppSend(o,'auto');
     },400);
   }
   if(!silent){sfx('stop');

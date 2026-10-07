@@ -698,6 +698,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 <!-- ============ 控制卡 ============ -->
 <section class="page" id="p-cards">
   <div class="topbar noprint"><button class="iconbtn" id="cardsback">‹</button><h2 id="cardstitle">控制卡</h2>
+    <button class="iconbtn" id="bpdf" title="导出 PDF">📄</button>
     <button class="iconbtn" id="bprint" title="打印">🖨️</button></div>
   <div class="pad">
     <div class="hint noprint" style="margin:4px 0 10px">
@@ -921,6 +922,7 @@ const CapP=()=>{try{return window.Capacitor&&window.Capacitor.Plugins}catch(e){r
 function mimeOf(name,blob){
   if(blob&&blob.type)return blob.type;
   const e=String(name).toLowerCase();
+  if(e.endsWith('.pdf'))return 'application/pdf';
   if(e.endsWith('.csv'))return 'text/csv';
   if(e.endsWith('.json'))return 'application/json';
   if(e.endsWith('.jpg')||e.endsWith('.jpeg'))return 'image/jpeg';
@@ -2696,26 +2698,192 @@ function drawQR(cv,text,px){
 }
 // which='shop' 时出店铺卡，否则出控制卡。分开印：控制卡是放在手边的，
 // 店铺卡是贴在工位上的，混在一张纸上反而要剪
-async function renderCards(which){
-  const box=document.getElementById('cardsbox');
-  const list=(which==='shop')
-    ? shopList().map(sh=>({code:'[SHOP:'+sh.id+']',t:'🏪 '+sh.name,
+// 当前这一页在显示哪种卡。导出 PDF 要跟着它走
+let cardsWhich='cmd';
+function cardsOf(which){
+  return (which==='shop')
+    ? shopList().map(sh=>({code:'[SHOP:'+sh.id+']',t:sh.name,
         d:'贴在这家店的打包位上，换店铺时扫一下。改店铺名不用重印这张卡'}))
     : CMDS;
+}
+async function renderCards(which){
+  cardsWhich=(which==='shop')?'shop':'cmd';
+  const box=document.getElementById('cardsbox');
+  const list=cardsOf(cardsWhich);
   const ttl=document.getElementById('cardstitle');
-  if(ttl)ttl.textContent=(which==='shop')?'店铺卡':'控制卡';
+  if(ttl)ttl.textContent=(cardsWhich==='shop')?'店铺卡':'控制卡';
   if(!list.length){
     box.innerHTML='<div class="hint" style="grid-column:1/-1">还没有店铺，先去「设置 → 店铺 / 平台 → 管理店铺」加一个</div>';
     return;
   }
   box.innerHTML=list.map(c=>`<div class="ccard"><canvas data-code="${esc(c.code)}"></canvas>
-    <div class="t">${esc(c.t)}</div><div class="s">${esc(c.code)}</div>
+    <div class="t">${esc(cardsWhich==='shop'?('🏪 '+c.t):c.t)}</div><div class="s">${esc(c.code)}</div>
     <div class="s" style="color:#888">${esc(c.d)}</div></div>`).join('');
   try{
     await loadJS(['vendor/qrcode.js','https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'],'qrcode');
     for(const cv of box.querySelectorAll('canvas'))drawQR(cv,cv.dataset.code);
   }catch(e){box.insertAdjacentHTML('afterbegin',
     '<div class="hint" style="grid-column:1/-1;color:var(--red)">二维码生成失败：'+esc(e.message)+'</div>')}
+}
+
+/* ---------------- 卡片导出 PDF ----------------
+   手机上按打印键多半只能连 WiFi 打印机，而这些卡更可能是拿去打印店、
+   或者传到电脑上印。所以直接出一份 PDF。
+
+   没引 jsPDF：仓库里要能离线用，不想为这一个功能多背 300 KB。
+   自己拼 PDF 其实不难——每张卡先画成一张 JPEG，PDF 里原样塞进去
+   （DCTDecode 就是把 JPEG 字节直接透传），中文由 canvas 渲染，
+   所以也不用嵌中文字体（嵌一个就是几 MB）。 */
+
+// 把一张卡画成 canvas：虚线边框（照着剪）+ 二维码 + 店铺名 + 卡号 + 说明
+function drawCardCanvas(c,px){
+  const W=760,H=920,cv=document.createElement('canvas');
+  cv.width=W;cv.height=H;
+  const x=cv.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,W,H);
+  x.strokeStyle='#c8c8c8';x.lineWidth=2;x.setLineDash([9,7]);
+  x.strokeRect(10,10,W-20,H-20);x.setLineDash([]);
+
+  const q=document.createElement('canvas');
+  drawQR(q,c.code,px||560);
+  const qs=560,qx=(W-qs)/2,qy=58;
+  x.imageSmoothingEnabled=false;              // 二维码缩放必须硬边，糊了就扫不出来
+  x.drawImage(q,qx,qy,qs,qs);
+  x.imageSmoothingEnabled=true;
+
+  x.textAlign='center';
+  x.fillStyle='#111';
+  x.font='700 56px system-ui,-apple-system,"Noto Sans CJK SC","Microsoft YaHei",sans-serif';
+  x.fillText(c.t,W/2,qy+qs+76,W-70);
+  x.fillStyle='#8a8a8a';
+  x.font='30px ui-monospace,Menlo,Consolas,monospace';
+  x.fillText(c.code,W/2,qy+qs+126,W-70);
+  x.fillStyle='#9a9a9a';
+  x.font='26px system-ui,-apple-system,"Noto Sans CJK SC",sans-serif';
+  wrapText(x,c.d,W/2,qy+qs+176,W-110,34);
+  return cv;
+}
+function wrapText(x,text,cx,y,maxW,lh){
+  const cs=String(text||'').split('');
+  let line='';
+  for(const ch of cs){
+    if(x.measureText(line+ch).width>maxW&&line){x.fillText(line,cx,y);y+=lh;line=ch}
+    else line+=ch;
+  }
+  if(line)x.fillText(line,cx,y);
+}
+function b64ToBytes(b64){
+  const bin=atob(b64),u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  return u;
+}
+// 二维码是纯黑白的，JPEG 来压既大又会在边缘糊出噪点——印小了就可能扫不出。
+// 优先走无损的 Flate（PDF 的 FlateDecode 要的就是 zlib 流，CompressionStream
+// ('deflate') 吐的正好是这个格式），拿不到就退回 JPEG
+async function canvasToPdfImage(cv){
+  if(typeof CompressionStream==='function'){
+    try{
+      const d=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data;
+      const rgb=new Uint8Array(cv.width*cv.height*3);
+      for(let i=0,j=0;i<d.length;i+=4){rgb[j++]=d[i];rgb[j++]=d[i+1];rgb[j++]=d[i+2]}
+      const cs=new CompressionStream('deflate');
+      const w=cs.writable.getWriter();w.write(rgb);w.close();
+      const packed=new Uint8Array(await new Response(cs.readable).arrayBuffer());
+      return {bytes:packed,w:cv.width,h:cv.height,filter:'/FlateDecode'};
+    }catch(e){}
+  }
+  const url=cv.toDataURL('image/jpeg',0.93);
+  return {bytes:b64ToBytes(url.split(',')[1]),w:cv.width,h:cv.height,filter:'/DCTDecode'};
+}
+// A4 竖版，2×2 一页。卡印大一点，蹲着扫才扫得到
+async function cardsToPdf(cards){
+  const PW=595.28,PH=841.89,M=30,GAP=14,COLS=2,ROWS=2,PER=COLS*ROWS;
+  const cellW=(PW-M*2-GAP*(COLS-1))/COLS,cellH=(PH-M*2-GAP*(ROWS-1))/ROWS;
+
+  const imgs=[];
+  for(const c of cards)imgs.push(await canvasToPdfImage(drawCardCanvas(c)));
+  const pages=Math.max(1,Math.ceil(imgs.length/PER));
+
+  const enc=new TextEncoder();
+  const parts=[];let len=0;
+  const put=v=>{const b=(typeof v==='string')?enc.encode(v):v;parts.push(b);len+=b.length};
+  const off=[];
+  const begin=n=>{off[n]=len};
+
+  // 对象编号：1 目录，2 页树，3..2+n 图片，之后每页一个页对象 + 一个内容流
+  const nImg=imgs.length,imgId=i=>3+i,pageId=p=>3+nImg+p*2,contId=p=>3+nImg+p*2+1;
+  const total=3+nImg+pages*2;
+
+  put('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n');
+  begin(1);
+  put('1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n');
+  begin(2);
+  put('2 0 obj\n<</Type/Pages/Count '+pages+'/Kids['+
+      Array.from({length:pages},(_,p)=>pageId(p)+' 0 R').join(' ')+']>>\nendobj\n');
+
+  imgs.forEach((im,i)=>{
+    begin(imgId(i));
+    put(imgId(i)+' 0 obj\n<</Type/XObject/Subtype/Image/Width '+im.w+'/Height '+im.h+
+        '/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter'+im.filter+
+        '/Length '+im.bytes.length+'>>\nstream\n');
+    put(im.bytes);
+    put('\nendstream\nendobj\n');
+  });
+
+  for(let p=0;p<pages;p++){
+    const mine=[];
+    let body='';
+    for(let k=0;k<PER;k++){
+      const i=p*PER+k;
+      if(i>=imgs.length)break;
+      mine.push(i);
+      const col=k%COLS,row=Math.floor(k/COLS);
+      const im=imgs[i];
+      // 等比缩进格子，居中
+      const sc=Math.min(cellW/im.w,cellH/im.h),w=im.w*sc,h=im.h*sc;
+      const cx=M+col*(cellW+GAP)+(cellW-w)/2;
+      // PDF 原点在左下，所以行号要翻过来
+      const cy=PH-M-row*(cellH+GAP)-(cellH-h)/2-h;
+      body+='q '+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+cx.toFixed(2)+' '+cy.toFixed(2)+
+            ' cm /Im'+i+' Do Q\n';
+    }
+    const res=mine.map(i=>'/Im'+i+' '+imgId(i)+' 0 R').join(' ');
+    begin(pageId(p));
+    put(pageId(p)+' 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 '+PW+' '+PH+
+        ']/Resources<</XObject<<'+res+'>>>>/Contents '+contId(p)+' 0 R>>\nendobj\n');
+    begin(contId(p));
+    const cb=enc.encode(body);
+    put(contId(p)+' 0 obj\n<</Length '+cb.length+'>>\nstream\n');
+    put(cb);
+    put('\nendstream\nendobj\n');
+  }
+
+  const xref=len;
+  // 每条 xref 必须正好 20 字节，少一个字节整份就读不了
+  let x='xref\n0 '+total+'\n0000000000 65535 f \n';
+  for(let n=1;n<total;n++)x+=String(off[n]||0).padStart(10,'0')+' 00000 n \n';
+  put(x);
+  put('trailer\n<</Size '+total+'/Root 1 0 R>>\nstartxref\n'+xref+'\n%%EOF\n');
+
+  const buf=new Uint8Array(len);let o=0;
+  for(const b of parts){buf.set(b,o);o+=b.length}
+  return new Blob([buf],{type:'application/pdf'});
+}
+async function exportCardsPdf(){
+  const which=cardsWhich;
+  const list=cardsOf(which);
+  if(!list.length){toast('还没有店铺，先去「管理店铺」加一个');return}
+  progBar('正在生成 PDF…');
+  try{
+    await loadJS(['vendor/qrcode.js','https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'],'qrcode');
+    const blob=await cardsToPdf(list);
+    progDone();
+    const nm=(which==='shop')?'packdesk-shop-cards.pdf':'packdesk-control-cards.pdf';
+    await saveFile(blob,nm,(which==='shop'?'店铺卡':'控制卡')+' '+list.length+' 张，A4 每页 4 张，沿虚线剪开');
+  }catch(e){
+    progDone();
+    toast('生成 PDF 失败：'+(e&&e.message||e),4000);
+  }
 }
 
 // 一次性扫码：打开摄像头，扫到第一个码就关掉并返回内容。
@@ -2827,6 +2995,7 @@ document.getElementById('row-cards').onclick=async()=>{show('cards');await rende
 document.getElementById('bcards2').onclick=async()=>{show('cards');await renderCards()};
 document.getElementById('row-fields').onclick=()=>{renderRules();show('fields')};
 document.getElementById('bprint').onclick=()=>window.print();
+document.getElementById('bpdf').onclick=()=>exportCardsPdf();
 document.getElementById('st-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('row-store').onclick=()=>{show('store');updQuota();bkInfo()};
 document.getElementById('st-engine').onclick=()=>enterRec(recType);

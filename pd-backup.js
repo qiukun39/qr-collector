@@ -389,6 +389,7 @@
         trackingNumber: order.no,
         mode: (order.type || 'out') === 'ret' ? 'return'
             : ((order.type === 'scan') ? 'inventory' : 'shipping'),
+        shop: order.shop || undefined,
         startedAt: new Date(order.t).toISOString(),
         endedAt: new Date(endedAt).toISOString(),
         durationMs: order.dur || 0,

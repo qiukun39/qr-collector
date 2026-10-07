@@ -152,6 +152,22 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 .tchip.scan{background:rgba(18,178,166,.85)}
 .tchip.rec{background:rgba(245,34,45,.85)}
 .tchip.mono{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+/* 当前店铺。做成贯通整条的色带而不是角标——一台设备发多个店铺，
+   标错了就得整单重录，这东西必须让人想看不见都难 */
+/* 不吃点击：它横跨整条顶部，会挡住左上角的返回和右上角的状态胶囊 */
+#shopbar{position:absolute;left:0;right:0;top:0;z-index:4;pointer-events:none;display:none;
+  align-items:center;justify-content:center;gap:8px;
+  padding:calc(7px + env(safe-area-inset-top)) 12px 7px;
+  font-size:15px;font-weight:800;letter-spacing:.5px;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.45);box-shadow:0 2px 10px rgba(0,0,0,.25)}
+#shopbar.on{display:flex}
+/* 色带占掉了顶上一条，按钮和胶囊跟着下移，别互相叠 */
+.ovl.hasshop .side,.ovl.hasshop .tchips{top:calc(50px + env(safe-area-inset-top))}
+.ovl.hasshop #wm{top:calc(110px + env(safe-area-inset-top))}
+#homeshop{display:flex;align-items:center;gap:9px;margin-bottom:11px;padding:11px 13px;
+  border-radius:13px;font-weight:700;cursor:pointer;border:1px solid transparent}
+#homeshop .sp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#homeshop small{font-weight:500;opacity:.78;font-size:12px}
 /* 取景框 */
 #frame{position:absolute;left:12%;top:32%;width:76%;height:24%;display:none;pointer-events:none}
 #frame.on{display:block}
@@ -359,6 +375,9 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     <button class="iconbtn" id="goset" title="设置">⚙️</button>
   </div>
   <div class="pad">
+    <div id="homeshop" title="点一下换店铺"><span>🏪</span>
+      <span class="sp"><span id="homeshopname">—</span><br><small id="homeshoptip">当前店铺</small></span>
+      <span class="chev">›</span></div>
     <div class="status" id="st-engine"><span>📷</span><span class="sp" id="st-engine-t">摄像头未启动</span><span class="chev">›</span></div>
     <div class="status" id="st-store"><span>💾</span><span class="sp" id="st-store-t">统计中…</span><span class="chev">›</span></div>
     <div class="bkcard" id="ppcard" style="display:none">
@@ -400,6 +419,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     <div class="t2" id="camofftip">点下方按钮开启<br>开启后对准快递面单即可自动录像</div>
   </div>
   <div class="ovl">
+    <div id="shopbar"><span>🏪</span><span id="shopbarname">—</span></div>
     <div id="wm"><div id="wmTime">--:--:--</div><div id="wmSub">摄像头未启动</div></div>
     <div class="side" style="left:12px;right:auto;flex-direction:row">
       <button id="bclosecam" title="返回">✕</button>
@@ -523,6 +543,16 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
                min-height:44px;background:var(--sub)"></div>
       <div class="rowi" id="row-ttstest"><span class="lab">试听</span><span class="chev">›</span></div>
       <div class="rowi" id="row-ttsdiag"><span class="lab">语音自检<small id="ttsdiag">点这里跑一次检测</small></span><span class="chev">›</span></div>
+    </div>
+
+    <div class="grp">店铺 / 平台</div>
+    <div class="list">
+      <div class="rowi"><span class="lab">当前店铺<small>录像时记在这一单上，传给电脑端</small></span>
+        <select id="o-shop"></select><span class="chev">›</span></div>
+      <div class="rowi" id="row-shops"><span class="lab">管理店铺<small id="shopsum">添加、改名、删除</small></span><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">播报店铺名<small>开录时先念店铺，再念提醒和单号</small></span>
+        <label class="sw"><input type="checkbox" id="o-shoptts"><i></i></label></div>
+      <div class="rowi" id="row-shopcards"><span class="lab">店铺卡 / 打印<small>贴在工位上，换店铺扫一下</small></span><span class="chev">›</span></div>
     </div>
 
     <div class="grp">控制卡</div>
@@ -667,7 +697,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
 
 <!-- ============ 控制卡 ============ -->
 <section class="page" id="p-cards">
-  <div class="topbar noprint"><button class="iconbtn" id="cardsback">‹</button><h2>控制卡</h2>
+  <div class="topbar noprint"><button class="iconbtn" id="cardsback">‹</button><h2 id="cardstitle">控制卡</h2>
     <button class="iconbtn" id="bprint" title="打印">🖨️</button></div>
   <div class="pad">
     <div class="hint noprint" style="margin:4px 0 10px">
@@ -708,6 +738,18 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     <div class="row">
       <button class="btn" id="askno" style="border-color:#d6dae1"></button>
       <button class="btn" id="askyes" style="background:var(--red);color:#fff;border-color:transparent;font-weight:600"></button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="shopbox" style="background:rgba(0,0,0,.55);z-index:221;align-items:flex-end;justify-content:center">
+  <div style="background:#fff;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));width:100%;max-width:520px">
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px">选择店铺</div>
+    <div style="font-size:12.5px;color:var(--dim);line-height:1.6;margin-bottom:12px">
+      平时扫贴在工位上的店铺卡切换就行，这里是忘带卡时的后路。</div>
+    <div id="shoppick"></div>
+    <div style="display:flex;gap:9px;margin-top:12px">
+      <button class="btn" id="shopadd" style="flex:1">＋ 添加店铺</button>
+      <button class="btn" id="shopclose" style="flex:1;border-color:#d6dae1">关闭</button>
     </div>
   </div>
 </div>
@@ -784,7 +826,10 @@ let opts=Object.assign({
   dup:'block',sw:'auto',samestop:0,
   q:1080,maxsec:120,audio:true,aec:false,wake:true,livemark:true,markstyle:'outline',marksn:true,
   tts:true,ttsno:true,ttssn:false,ttscd:true,ttsrate:1,tiptext:'',
-  cmd:true,snapdelay:3,photo:true,mark:true,size:1600,beep:true,vib:true,keep:0
+  cmd:true,snapdelay:3,photo:true,mark:true,size:1600,beep:true,vib:true,keep:0,
+  // 店铺/平台。一台设备一个工位发多个店铺，靠扫店铺卡切换。
+  // 存的是 {id,name}：二维码里只放 id，见 parseShop 上面那段
+  shops:[{id:'s1',name:'得物'},{id:'s2',name:'淘宝'}],shop:'s1',shoptts:true
 },lsGet(K.opt,{}));
 let orders=[],filt='all',recType='out';
 const isScan=()=>recType==='scan';
@@ -1266,6 +1311,7 @@ function scanDesc(){
 function classify(text,fmt){
   const t=String(text).trim();fmt=fmtName(fmt);
   if(opts.cmd&&/^\[CMD:[A-Z]+\d*\]$/i.test(t))return 'cmd';
+  if(parseShop(t)!==null)return 'shop';   // 店铺卡任何时候都认，和控制卡开关无关
   if(typeof recType!=='undefined'&&recType==='scan')return scanMatch(t,fmt)?'item':'skip';
   if(purify(text).matched)return 'item';     // 能提纯 = 商品，永远优先
   if(wbMatch(t,fmt))return 'waybill';
@@ -1342,6 +1388,194 @@ async function loop(){
 /* ===================== 指令 / 分发 ===================== */
 function parseCmd(t){const m=String(t).trim().match(/^\[CMD:([A-Z]+)(\d*)\]$/i);
   return m?{name:m[1].toUpperCase(),arg:m[2]===''?null:+m[2]}:null}
+// 店铺卡：[SHOP:s1]。贴在工位上，换店铺时扫一下。
+//
+// 二维码里放的是 ASCII 短 id，不是店铺名——这不是洁癖：qrcode.js 按 UTF-8
+// 写字节但不带 ECI 标记，ZXing 就按别的字符集去读，[SHOP:得物] 实测被解成
+// [SHOP:擁]。用 id 还顺带解决了另一件事：改店铺名不会让已经贴出去的卡失效。
+function parseShop(t){
+  const m=String(t).trim().match(/^\[SHOP:([\x20-\x7e]{1,32}?)\]$/);
+  return m?m[1].trim():null;
+}
+// 老格式（直接存店铺名的字符串数组）顺手升上来
+function shopList(){
+  let l=Array.isArray(opts.shops)?opts.shops:[];
+  let fix=false;
+  l=l.map((x,i)=>{
+    if(x&&typeof x==='object'&&x.id)return x;
+    fix=true;
+    return {id:'s'+(i+1),name:String(x&&x.name||x||('店铺'+(i+1)))};
+  });
+  if(fix){opts.shops=l;if(opts.shop&&!l.some(x=>x.id===opts.shop)){
+    const hit=l.find(x=>x.name===opts.shop);opts.shop=hit?hit.id:(l[0]&&l[0].id)||'';}
+    lsSet(K.opt,opts)}
+  return l;
+}
+function shopById(id){return shopList().find(x=>x.id===id)||null}
+function newShopId(){
+  const used=new Set(shopList().map(x=>x.id));
+  for(let i=1;i<9999;i++){const id='s'+i;if(!used.has(id))return id}
+  return 's'+Date.now();
+}
+function curShopId(){
+  const l=shopList();
+  if(opts.shop&&l.some(x=>x.id===opts.shop))return opts.shop;
+  return (l[0]&&l[0].id)||'';
+}
+// 配色和电脑端用同一套哈希，两边看到的「得物」是同一个颜色
+const SHOP_COLORS=[
+  ['#b4530a','#fff1e3'],['#1b6fb8','#e4f0fb'],['#0f7a52','#e2f5ec'],
+  ['#8a3fb0','#f3e8fa'],['#a81f49','#fde7ee'],['#6b6410','#f6f3dd']
+];
+function shopHue(name){
+  let h=0;for(const c of String(name))h=(h*31+c.codePointAt(0))>>>0;
+  return SHOP_COLORS[h%SHOP_COLORS.length];
+}
+function paintShop(){
+  const nm=curShop();
+  const bar=document.getElementById('shopbar');
+  const hs=document.getElementById('homeshop');
+  const [fg,bg]=nm?shopHue(nm):['#8a929e','#eef0f3'];
+  if(bar){
+    bar.classList.toggle('on',!!nm);
+    const ovl=bar.parentElement;
+    if(ovl)ovl.classList.toggle('hasshop',!!nm);
+    bar.style.background=fg;
+    const t=document.getElementById('shopbarname');
+    if(t)t.textContent=nm||'';
+  }
+  if(hs){
+    hs.style.background=bg;hs.style.color=fg;hs.style.borderColor=fg+'33';
+    const n=document.getElementById('homeshopname'),tip=document.getElementById('homeshoptip');
+    if(n)n.textContent=nm||'未设置店铺';
+    if(tip)tip.textContent=nm?('当前店铺 · 共 '+shopList().length+' 家，点这里切换'):'点这里添加';
+  }
+  renderShopSel&&renderShopSel();
+}
+// 店铺名输入。没用 window.prompt——Capacitor 的 WebView 里它的样式和行为
+// 都不可控，而且有些机型上直接不弹
+function askShopName(title,init){
+  return new Promise(res=>{
+    const box=document.getElementById('shoppick');
+    box.innerHTML=`<div class="hint" style="margin-bottom:8px">${esc(title)}</div>
+      <input type="text" id="shopin" maxlength="24" value="${esc(init||'')}" placeholder="比如 得物"
+        style="width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;
+               padding:11px;min-height:44px;background:var(--sub);font-size:16px">
+      <div style="display:flex;gap:9px;margin-top:10px">
+        <button class="btn" id="shopinno" style="flex:1;border-color:#d6dae1">取消</button>
+        <button class="btn" id="shopinok" style="flex:1;background:var(--blue);color:#fff;border-color:transparent;font-weight:600">确定</button>
+      </div>`;
+    const inp=document.getElementById('shopin');
+    setTimeout(()=>{inp.focus();inp.select()},60);
+    const done=v=>res(v);
+    document.getElementById('shopinok').onclick=()=>done((inp.value||'').trim());
+    document.getElementById('shopinno').onclick=()=>done(null);
+    inp.onkeydown=e=>{if(e.key==='Enter')done((inp.value||'').trim())};
+  });
+}
+async function addShopFlow(){
+  const nm=await askShopName('新店铺叫什么？');
+  if(nm===null){openShopPick();return}
+  if(!nm){toast('店铺名不能为空');openShopPick();return}
+  if(shopList().some(x=>x.name===nm)){toast('已经有这家了');openShopPick();return}
+  setShop(newShopId(),{name:nm});
+  openShopPick();
+}
+async function renameShopFlow(id){
+  const sh=shopById(id);if(!sh){openShopManage();return}
+  const old=sh.name;
+  const nm=await askShopName('改成什么名字？',old);
+  if(nm===null||nm===old){openShopManage();return}
+  if(!nm){toast('店铺名不能为空');openShopManage();return}
+  if(shopList().some(x=>x.name===nm)){toast('已经有这家了');openShopManage();return}
+  opts.shops=shopList().map(x=>x.id===id?{id,name:nm}:x);
+  lsSet(K.opt,opts);syncOpts();paintShop();
+  // 二维码里存的是 id，所以改名不用重印卡。
+  // 已经录过的单子也不动：那是当时的事实，改了就不叫留证了
+  toast('已改名为「'+nm+'」。贴出去的卡照样能用；以前录的单子仍记着「'+old+'」',4000);
+  openShopManage();
+}
+async function delShopFlow(id){
+  const sh=shopById(id);if(!sh){openShopManage();return}
+  const ok=await ask('删掉店铺「'+sh.name+'」？',
+    '已经录过的单子不受影响，仍然记着这家店。\n贴在工位上的那张卡会失效，再扫会被当成新店铺加回来。',
+    '删掉','留着','🏪');
+  if(!ok){openShopManage();return}
+  const l=shopList().filter(x=>x.id!==id);opts.shops=l;
+  if(opts.shop===id)opts.shop=(l[0]&&l[0].id)||'';
+  lsSet(K.opt,opts);syncOpts();paintShop();
+  toast('已删掉「'+sh.name+'」');
+  openShopManage();
+}
+function openShopManage(){
+  const box=document.getElementById('shoppick');
+  box.innerHTML=shopList().map(sh=>{
+    const [fg]=shopHue(sh.name);
+    return `<div class="rowi" style="gap:8px">
+      <span class="lab" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0">
+        <span style="width:13px;height:13px;border-radius:4px;background:${fg};flex:0 0 auto"></span>
+        <span style="overflow:hidden;text-overflow:ellipsis">${esc(sh.name)}
+          <small style="color:var(--dim)">卡号 ${esc(sh.id)}</small></span></span>
+      <button class="btn shoprn" data-id="${esc(sh.id)}" style="padding:7px 12px">改名</button>
+      <button class="btn shopdel" data-id="${esc(sh.id)}" style="padding:7px 12px;color:var(--red);border-color:#f3c8c8">删</button>
+    </div>`;
+  }).join('')||'<div class="hint" style="padding:10px 0">还没有店铺</div>';
+  box.querySelectorAll('.shoprn').forEach(e=>e.onclick=()=>renameShopFlow(e.dataset.id));
+  box.querySelectorAll('.shopdel').forEach(e=>e.onclick=()=>delShopFlow(e.dataset.id));
+  document.getElementById('shopbox').classList.add('on');
+}
+function openShopPick(){
+  const box=document.getElementById('shoppick');
+  const nm=curShop();
+  box.innerHTML=shopList().map(sh=>{
+    const [fg]=shopHue(sh.name);
+    return `<div class="rowi shoprow" data-id="${esc(sh.id)}" style="cursor:pointer">
+      <span class="lab" style="display:flex;align-items:center;gap:9px">
+        <span style="width:13px;height:13px;border-radius:4px;background:${fg};flex:0 0 auto"></span>
+        <span style="font-weight:${sh.name===nm?'700':'500'}">${esc(sh.name)}</span></span>
+      <span style="color:${fg};font-weight:700">${sh.name===nm?'✓':''}</span></div>`;
+  }).join('')||'<div class="hint" style="padding:10px 0">还没有店铺，点下面添加</div>';
+  box.querySelectorAll('.shoprow').forEach(e=>e.onclick=()=>{
+    setShop(e.dataset.id);document.getElementById('shopbox').classList.remove('on')});
+  document.getElementById('shopbox').classList.add('on');
+}
+// 对外一律用店铺「名」：录像记录、色带、传给电脑端的都是名字，
+// id 只活在二维码和本机设置里
+function curShop(){
+  const sh=shopById(curShopId());
+  return sh?sh.name:'';
+}
+// 按 id 切。扫到没见过的 id 就直接建一家——卡已经在手上了，
+// 还要人先回设置里添一遍纯属多余；名字让他回头改
+function setShop(id,opt){
+  id=String(id||'').trim();
+  if(!id)return;
+  let sh=shopById(id),isNew=false;
+  if(!sh){
+    isNew=true;
+    sh={id,name:(opt&&opt.name)||('店铺 '+id)};
+    opts.shops=shopList().concat([sh]);
+  }
+  opts.shop=sh.id;lsSet(K.opt,opts);
+  if(cur)cur.shop=sh.name;           // 录像中补扫：这一单也跟着改
+  syncOpts&&syncOpts();
+  paintShop();
+  sfx('item');
+  toast((isNew?'新店铺「':'已切到「')+sh.name+(isNew?'」已加入并选中，可以去设置里改名':'」')
+        +(cur?'　本单也已改为这家':''),isNew?4000:2800);
+  say((cur?'本单改为，':'已切到，')+sh.name,true);
+}
+// 扫到的卡：先按 id 认，认不出再按名字认（有人手搓过纯英文的卡），
+// 都认不出才当新店铺
+function applyShopCard(payload){
+  if(shopById(payload)){setShop(payload);return}
+  const byName=shopList().find(x=>x.name===payload);
+  if(byName){setShop(byName.id);return}
+  // 长得像我们自己发的卡号（s1、s2…）就当卡号用，名字留给人回头改；
+  // 否则多半是谁手搓的英文卡，直接拿它当店铺名
+  if(/^s\d{1,4}$/.test(payload))setShop(payload);
+  else setShop(newShopId(),{name:payload});
+}
 // 为什么被过滤掉——光说「不符合规则」，人根本不知道该去动哪个设置
 function skipWhy(text,fmt){
   if(isScan())return '';
@@ -1365,6 +1599,10 @@ async function handle(text,fmt){
                     :('已过滤：'+String(text).slice(0,24)+(why?('　'+why):'')),
             why?3600:2000);
     }
+    return;
+  }
+  if(kind==='shop'){
+    applyShopCard(parseShop(text));
     return;
   }
   if(kind==='cmd'){
@@ -1472,6 +1710,7 @@ async function startOrder(no,opt){
   }
   const mime=pickMime();
   cur={id:Date.now(),no,type:recType,t:Date.now(),items:[],mime:scan?'':mime,
+       shop:curShop(),
        q:+opts.q,audio:scan?false:!!opts.audio,lm:false,
        photo:scan?!!(opt&&opt.photo):!!opts.photo};
   chunks=[];pausedTotal=0;pausedAt=0;recStart=Date.now();
@@ -1495,7 +1734,10 @@ async function startOrder(no,opt){
   // 提醒词念在最前面。以前拼在单号后面，而 13 位单号逐字念要 8 秒左右，
   // 操作员这期间一扫商品码，后半截就被新播报冲掉——提醒永远是最先被牺牲的
   const tip=(!scan&&opts.tiptext&&opts.tiptext.trim())?(opts.tiptext.trim()+'。'):'';
-  say(tip+(scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像')),true);
+  // 店铺名排在提醒词前面，理由同上：越靠后越容易被下一次播报吃掉，
+  // 而「这一单是哪家店」是错了就得重录的信息
+  const sp=(opts.shoptts&&cur.shop)?(cur.shop+'。'):'';
+  say(sp+tip+(scan?('开始盘点，'+no):(opts.ttsno?('开始录像，单号 '+spellNo(no)):'开始录像')),true);
   // 面单这一帧单独拍一张，当这一单的封面。
   // 发多个店铺时每家的面单长相不同，看封面就知道是哪家；
   // 用第一个商品码那张反而看不出区别
@@ -1850,7 +2092,7 @@ function testRule(i){const r=rules[i],out=document.getElementById('out'+i);if(!o
   if(!m){out.innerHTML='<span style="color:var(--warn)">不匹配</span>';return}
   out.innerHTML='→ <span style="color:var(--green);font-weight:700">'+esc(applyTpl(r.tpl,m))+'</span>'}
 function syncOpts(){
-  ['audio','aec','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd','showframe']
+  ['audio','aec','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd','showframe','shoptts']
     .forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.checked=!!opts[k]});
   [['wbrule','wbrule'],['cfmt','cfmt'],['scanrule','scanrule'],['scfmt','scfmt'],['scanarea','scanarea'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
    ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],
@@ -1860,6 +2102,20 @@ function syncOpts(){
   document.querySelectorAll('.rowi.sct').forEach(r=>r.style.display=opts.scanrule==='custom'?'':'none');
   const d=document.getElementById('wbdesc');if(d)d.textContent=wbDesc();
   const d2=document.getElementById('scandesc');if(d2)d2.textContent=scanDesc();
+  renderShopSel();
+}
+// 单独拎出来：paintShop 里也要调，而那时 syncOpts 不一定跑过
+function renderShopSel(){
+  const sel=document.getElementById('o-shop');
+  if(sel){
+    const id=curShopId();
+    sel.innerHTML=shopList().map(sh=>
+      `<option value="${esc(sh.id)}" ${sh.id===id?'selected':''}>${esc(sh.name)}</option>`).join('')
+      ||'<option value="">（还没有店铺）</option>';
+  }
+  const sum=document.getElementById('shopsum');
+  const names=shopList().map(x=>x.name);
+  if(sum)sum.textContent=names.length?('共 '+names.length+' 家：'+names.join('、')):'还没有店铺，点这里添加';
 }
 async function updQuota(){
   const vs=orders.reduce((a,o)=>a+(o.vsize||0),0);
@@ -2003,8 +2259,8 @@ async function collectFiles(o){
 function orderCsv(o){
   const q=x=>'"'+String(x==null?'':x).replace(/"/g,'""')+'"';
   const cs=cols();o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)}));
-  const rows=[['单号','类型','开始时间','时长','序号','主值',...cs,'原始内容','照片','码制']];
-  o.items.forEach((i,k)=>rows.push([o.no,{out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'],ts(o.t),
+  const rows=[['单号','店铺','类型','开始时间','时长','序号','主值',...cs,'原始内容','照片','码制']];
+  o.items.forEach((i,k)=>rows.push([o.no,o.shop||'',{out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'],ts(o.t),
     mmss(o.dur||0),k+1,i.v,...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'有':'',i.fmt||'']));
   return '\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n');
 }
@@ -2407,10 +2663,10 @@ async function burn(o){
 function csvAll(list){
   const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
   const cs=cols();list.forEach(o=>o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)})));
-  const rows=[['单号','类型','开始时间','时长','序号','主值',...cs,'原始内容','有照片','码制']];
-  list.forEach(o=>{const tp={out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'];
-    if(!o.items.length)rows.push([o.no,tp,ts(o.t),mmss(o.dur||0),'','',...cs.map(()=>''),'','','']);
-    o.items.forEach((i,k)=>rows.push([o.no,tp,ts(o.t),mmss(o.dur||0),k+1,i.v,
+  const rows=[['单号','店铺','类型','开始时间','时长','序号','主值',...cs,'原始内容','有照片','码制']];
+  list.forEach(o=>{const tp={out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'],sh=o.shop||'';
+    if(!o.items.length)rows.push([o.no,sh,tp,ts(o.t),mmss(o.dur||0),'','',...cs.map(()=>''),'','','']);
+    o.items.forEach((i,k)=>rows.push([o.no,sh,tp,ts(o.t),mmss(o.dur||0),k+1,i.v,
       ...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'是':'',i.fmt||'']))});
   return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
 }
@@ -2438,9 +2694,21 @@ function drawQR(cv,text,px){
   for(let r=0;r<n;r++)for(let c=0;c<n;c++)
     if(q.isDark(r,c))x.fillRect((c+quiet)*cell,(r+quiet)*cell,cell,cell);
 }
-async function renderCards(){
+// which='shop' 时出店铺卡，否则出控制卡。分开印：控制卡是放在手边的，
+// 店铺卡是贴在工位上的，混在一张纸上反而要剪
+async function renderCards(which){
   const box=document.getElementById('cardsbox');
-  box.innerHTML=CMDS.map(c=>`<div class="ccard"><canvas data-code="${esc(c.code)}"></canvas>
+  const list=(which==='shop')
+    ? shopList().map(sh=>({code:'[SHOP:'+sh.id+']',t:'🏪 '+sh.name,
+        d:'贴在这家店的打包位上，换店铺时扫一下。改店铺名不用重印这张卡'}))
+    : CMDS;
+  const ttl=document.getElementById('cardstitle');
+  if(ttl)ttl.textContent=(which==='shop')?'店铺卡':'控制卡';
+  if(!list.length){
+    box.innerHTML='<div class="hint" style="grid-column:1/-1">还没有店铺，先去「设置 → 店铺 / 平台 → 管理店铺」加一个</div>';
+    return;
+  }
+  box.innerHTML=list.map(c=>`<div class="ccard"><canvas data-code="${esc(c.code)}"></canvas>
     <div class="t">${esc(c.t)}</div><div class="s">${esc(c.code)}</div>
     <div class="s" style="color:#888">${esc(c.d)}</div></div>`).join('');
   try{
@@ -2532,6 +2800,12 @@ document.getElementById('go-out').onclick=()=>enterRec('out');
 document.getElementById('go-ret').onclick=()=>enterRec('ret');
 document.getElementById('go-scan').onclick=()=>enterRec('scan');
 document.getElementById('goset').onclick=()=>show('set');
+document.getElementById('homeshop').onclick=()=>openShopPick();
+document.getElementById('shopclose').onclick=()=>document.getElementById('shopbox').classList.remove('on');
+document.getElementById('shopadd').onclick=()=>addShopFlow();
+document.getElementById('row-shops').onclick=()=>openShopManage();
+document.getElementById('o-shop').onchange=e=>{ if(e.target.value)setShop(e.target.value) };
+document.getElementById('row-shopcards').onclick=async()=>{show('cards');await renderCards('shop')};
 document.getElementById('gofields').onclick=()=>{renderRules();show('fields')};
 document.getElementById('bclosecam').onclick=async()=>{
   if(cur){
@@ -3000,7 +3274,7 @@ window.addEventListener('beforeunload',e=>{if(cur){e.preventDefault();e.returnVa
   try{await DB.open()}catch(e){toast('数据库打开失败：'+e.message,5000)}
   try{orders=(await DB.all('orders')).sort((a,b)=>b.t-a.t)}catch(e){orders=[]}
   await restoreOpts();
-  initTTS();syncOpts();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();pdSync();ppSync();
+  initTTS();syncOpts();paintShop();renderRules();renderOrders();bkInfo();updQuota();updPersist();pruneOld();updUI();pdSync();ppSync();
   // 启动时先试一次，再按各自的退避时间排下一轮
   ppQueueRun(true).then(ppQueueTick);
   ppHeartbeat();

@@ -1424,7 +1424,26 @@ function curShopId(){
   if(opts.shop&&l.some(x=>x.id===opts.shop))return opts.shop;
   return (l[0]&&l[0].id)||'';
 }
-// 配色和电脑端用同一套哈希，两边看到的「得物」是同一个颜色
+/* 店铺配色。认得出牌子的用人家自己的品牌色，认不出的退回按名字哈希取色。
+   m 是主色（色带底色、色块），lf/lb 是文字和浅底——品牌色直接当文字多半
+   不够对比度，得另配。
+
+   电脑端 webui/index.html 里有一份一模一样的表，改了要两边一起改，
+   不然同一家店在手机上和电脑上是两个颜色。 */
+const SHOP_BRANDS=[
+  {k:/得物|poizon|dewu/i,  m:'#7ed3c1', lf:'#0e7a6a', lb:'#e6f7f3'},
+  {k:/天猫|tmall/i,        m:'#ff0036', lf:'#c8002a', lb:'#ffecf0'},
+  {k:/淘宝|taobao/i,       m:'#ff5000', lf:'#c03e00', lb:'#fff0e8'},
+  {k:/京东|jd\b/i,         m:'#e1251b', lf:'#b51c14', lb:'#fdeceb'},
+  {k:/拼多多|pdd|temu/i,   m:'#e22e1f', lf:'#b8220f', lb:'#fdedeb'},
+  {k:/抖音|douyin|tiktok/i,m:'#141414', lf:'#141414', lb:'#f0f0f2'},
+  {k:/快手|kuaishou/i,     m:'#ff4906', lf:'#bf3700', lb:'#fff0e9'},
+  {k:/小红书|red\b/i,      m:'#ff2442', lf:'#cc1030', lb:'#ffecef'},
+  {k:/闲鱼|咸鱼/i,          m:'#ffc400', lf:'#8a5a00', lb:'#fff6e0'},
+  {k:/1688|阿里巴巴/i,      m:'#ff6a00', lf:'#b84d00', lb:'#fff1e6'},
+  {k:/亚马逊|amazon/i,     m:'#ff9900', lf:'#8a5300', lb:'#fff4e0'},
+  {k:/shopee|虾皮/i,       m:'#ee4d2d', lf:'#c13a1e', lb:'#fdeeea'}
+];
 const SHOP_COLORS=[
   ['#b4530a','#fff1e3'],['#1b6fb8','#e4f0fb'],['#0f7a52','#e2f5ec'],
   ['#8a3fb0','#f3e8fa'],['#a81f49','#fde7ee'],['#6b6410','#f6f3dd']
@@ -1433,21 +1452,40 @@ function shopHue(name){
   let h=0;for(const c of String(name))h=(h*31+c.codePointAt(0))>>>0;
   return SHOP_COLORS[h%SHOP_COLORS.length];
 }
+// 色带上压黑字还是白字，按底色亮度定。得物那个薄荷绿上压白字根本看不清
+function onColor(hex){
+  const n=parseInt(String(hex).slice(1),16);
+  const f=v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)};
+  const L=0.2126*f(n>>16&255)+0.7152*f(n>>8&255)+0.0722*f(n&255);
+  return L>0.40?'#102a26':'#ffffff';
+}
+function shopStyle(name){
+  const b=SHOP_BRANDS.find(x=>x.k.test(name));
+  if(b)return {m:b.m,lf:b.lf,lb:b.lb};
+  const [lf,lb]=shopHue(name);
+  return {m:lf,lf,lb};
+}
 function paintShop(){
   const nm=curShop();
   const bar=document.getElementById('shopbar');
   const hs=document.getElementById('homeshop');
-  const [fg,bg]=nm?shopHue(nm):['#8a929e','#eef0f3'];
+  const c=nm?shopStyle(nm):{m:'#8a929e',lf:'#8a929e',lb:'#eef0f3'};
   if(bar){
     bar.classList.toggle('on',!!nm);
     const ovl=bar.parentElement;
     if(ovl)ovl.classList.toggle('hasshop',!!nm);
-    bar.style.background=fg;
+    // 色带用真品牌色打底，字色跟着底色走
+    bar.style.background=c.m;
+    const fg=onColor(c.m);
+    bar.style.color=fg;
+    // 深字配浅底时那圈黑投影会显脏，换成浅的
+    bar.style.textShadow=(fg==='#ffffff')?'0 1px 3px rgba(0,0,0,.45)'
+                                         :'0 1px 2px rgba(255,255,255,.5)';
     const t=document.getElementById('shopbarname');
     if(t)t.textContent=nm||'';
   }
   if(hs){
-    hs.style.background=bg;hs.style.color=fg;hs.style.borderColor=fg+'33';
+    hs.style.background=c.lb;hs.style.color=c.lf;hs.style.borderColor=c.m+'33';
     const n=document.getElementById('homeshopname'),tip=document.getElementById('homeshoptip');
     if(n)n.textContent=nm||'未设置店铺';
     if(tip)tip.textContent=nm?('当前店铺 · 共 '+shopList().length+' 家，点这里切换'):'点这里添加';
@@ -1512,7 +1550,7 @@ async function delShopFlow(id){
 function openShopManage(){
   const box=document.getElementById('shoppick');
   box.innerHTML=shopList().map(sh=>{
-    const [fg]=shopHue(sh.name);
+    const fg=shopStyle(sh.name).m;
     return `<div class="rowi" style="gap:8px">
       <span class="lab" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0">
         <span style="width:13px;height:13px;border-radius:4px;background:${fg};flex:0 0 auto"></span>
@@ -1530,7 +1568,7 @@ function openShopPick(){
   const box=document.getElementById('shoppick');
   const nm=curShop();
   box.innerHTML=shopList().map(sh=>{
-    const [fg]=shopHue(sh.name);
+    const fg=shopStyle(sh.name).m;
     return `<div class="rowi shoprow" data-id="${esc(sh.id)}" style="cursor:pointer">
       <span class="lab" style="display:flex;align-items:center;gap:9px">
         <span style="width:13px;height:13px;border-radius:4px;background:${fg};flex:0 0 auto"></span>

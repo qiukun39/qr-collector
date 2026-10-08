@@ -1,9 +1,9 @@
 {
   "_说明": "装箱台的版本清单。电脑端每 6 小时读一次这个文件来判断有没有新版。放在公开站点上是因为电脑端仓库是私有的，GitHub 接口要令牌，而令牌不能塞进发出去的程序里。",
   "desktop": {
-    "version": "0.12.0",
+    "version": "0.12.1",
     "page": "https://github.com/qiukun39/packdesk-desktop/releases/latest",
-    "notes": "店铺徽标改用各家品牌色（得物薄荷绿、淘宝橙…），要配 App 4.2"
+    "notes": "修：导入的录像类型显示成「ship」；店铺字标里的字没居中"
   },
   "app": {
     "version": "4.2",

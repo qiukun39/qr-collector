@@ -387,8 +387,9 @@
       body: {
         id: 'qrc-' + order.id,
         trackingNumber: order.no,
-        mode: (order.type || 'out') === 'ret' ? 'return'
-            : ((order.type === 'scan') ? 'inventory' : 'shipping'),
+        // 和 index.html 里 TYPES 表的 mode 一致
+        mode: ({ out: 'shipping', in: 'inbound', ret: 'return', scan: 'inventory' })[order.type || 'out']
+              || 'shipping',
         shop: order.shop || undefined,
         startedAt: new Date(order.t).toISOString(),
         endedAt: new Date(endedAt).toISOString(),

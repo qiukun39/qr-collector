@@ -11,7 +11,7 @@
 :root{
   --bg:#f2f3f5; --card:#fff; --fg:#1a1d21; --dim:#8a9099; --line:#ececf0; --sub:#f7f8fa;
   --blue:#2b7fff; --blue-s:#e8f1ff; --green:#00b96b; --green-s:#e4f7ee;
-  --orange:#ff8c1a; --teal:#12b2a6; --red:#f5222d; --warn:#d48806;
+  --orange:#ff8c1a; --teal:#12b2a6; --purple:#7b5cf0; --red:#f5222d; --warn:#d48806;
   --r:16px; --rs:12px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -101,8 +101,10 @@ ul.ords{list-style:none;margin:0;padding:0;background:var(--card);border-radius:
 ul.ords li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
 ul.ords li:last-child{border-bottom:0}
 ul.ords .bar{width:4px;align-self:stretch;border-radius:3px;background:var(--blue);flex:0 0 auto}
+ul.ords .bar.inb{background:var(--green)}
 ul.ords .bar.ret{background:var(--orange)}
-ul.ords .bar.scan{background:var(--teal)}
+/* 盘点从青改紫：收货要占绿，而青和绿挨太近，四个并排分不出来 */
+ul.ords .bar.scan{background:var(--purple)}
 .mini.t{background:#e2f7f5;color:#07746c}
 /* 详情页的视频：黑底圆角，配上封面。没封面时浏览器会画一块灰底加个巨大的
    播放钮，在手机上很突兀 */
@@ -123,11 +125,24 @@ ul.ords .mid .t{font-size:12.5px;color:var(--dim);margin:1px 0 5px}
 .mini.r{background:#ffecec;color:#c92a2a}
 ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
 .empty{color:var(--dim);text-align:center;padding:40px 10px;font-size:14px}
+/* 发货占绝大多数，给它整条大按钮；另外三个偶尔用，缩小但一眼能找到。
+   大小按钮都是「图标在上、文字在下」，四个看着才像一套 */
 .dock{position:sticky;bottom:0;background:var(--card);border-radius:20px;margin:14px 0 calc(6px + env(safe-area-inset-bottom));
-  padding:13px 8px;display:flex;box-shadow:0 -2px 14px rgba(0,0,0,.08)}
-.dock button{flex:1 1 0;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12.5px;color:#4a5160}
-.dock .ic{width:50px;height:50px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff}
-.dock .b1{background:var(--blue)}.dock .b2{background:var(--orange)}.dock .b3{background:var(--teal)}
+  padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 -2px 14px rgba(0,0,0,.08)}
+.dock .main{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  padding:16px;border-radius:16px;border:0;background:var(--blue);color:#fff;
+  font:700 17px/1.2 inherit;cursor:pointer}
+.dock .main .ic{width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.22);
+  display:flex;align-items:center;justify-content:center;font-size:24px}
+.dock .main:active{background:#1b63d6}
+.dock .sub{display:flex;gap:8px}
+.dock .sub button{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:9px 4px;border-radius:14px;border:1px solid var(--line);background:var(--card);
+  font:600 12.5px/1.2 inherit;color:#4a5160;cursor:pointer}
+.dock .sub button:active{background:#f0f2f6}
+.dock .sub .ic{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;
+  justify-content:center;font-size:17px;color:#fff}
+.dock .b2{background:var(--green)}.dock .b3{background:var(--orange)}.dock .b4{background:var(--purple)}
 
 /* ====== 录像页：全屏相机 ====== */
 #p-rec{position:fixed;inset:0;background:#000;overflow:hidden;z-index:60}
@@ -148,8 +163,9 @@ ul.ords .chev{color:#c7ccd4;font-size:17px;flex:0 0 auto}
   color:#fff;font-size:13.5px;font-weight:600;padding:8px 15px;border-radius:999px;white-space:nowrap;
   max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tchip.t2{background:rgba(43,127,255,.82)}
+.tchip.inb{background:rgba(0,185,107,.85)}
 .tchip.ret{background:rgba(255,140,26,.85)}
-.tchip.scan{background:rgba(18,178,166,.85)}
+.tchip.scan{background:rgba(123,92,240,.85)}
 .tchip.rec{background:rgba(245,34,45,.85)}
 .tchip.mono{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
 /* 当前店铺。做成贯通整条的色带而不是角标——一台设备发多个店铺，
@@ -397,15 +413,19 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
     <div class="chips">
       <button class="chip on" data-f="all">全部 (0)</button>
       <button class="chip" data-f="out">发货 (0)</button>
+      <button class="chip" data-f="in">收货 (0)</button>
       <button class="chip" data-f="ret">退货 (0)</button>
       <button class="chip" data-f="scan">盘点 (0)</button>
     </div>
     <div id="ordwrap"></div>
     <div class="empty" id="ordsempty">还没有单据<br><span style="font-size:12.5px">点下面「打包发货录像」开始</span></div>
     <div class="dock">
-      <button id="go-out"><span class="ic b1">📦</span>打包发货录像</button>
-      <button id="go-ret"><span class="ic b2">📥</span>拆包退货录像</button>
-      <button id="go-scan"><span class="ic b3">📋</span>扫码盘点</button>
+      <button class="main" id="go-out"><span class="ic">📦</span>打包发货录像</button>
+      <div class="sub">
+        <button id="go-in"><span class="ic b2">📥</span>开箱收货</button>
+        <button id="go-ret"><span class="ic b3">↩️</span>拆包退货</button>
+        <button id="go-scan"><span class="ic b4">📋</span>扫码盘点</button>
+      </div>
     </div>
   </div>
 </section>
@@ -497,8 +517,18 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
         <input type="text" class="mono" id="o-cpre" placeholder="SF,JD" autocapitalize="characters" spellcheck="false"></div>
       <div class="rowi cst" style="display:none"><span class="lab">过滤掉以此开头<small>例如商品码前缀</small></span>
         <input type="text" class="mono" id="o-cexc" placeholder="69,00" autocapitalize="off" spellcheck="false"></div>
-      <div class="rowi"><span class="lab">重复单号规则</span>
+      <div class="rowi"><span class="lab">重复单号规则<small>只在「同一单号 + 同一类型」时生效。发过货的单号拿来录退货，永远放行</small></span>
         <select id="o-dup"><option value="block">提示并禁止录制</option><option value="warn">提示但继续录制</option><option value="silent">不提示直接录制</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">拦多久<small>超过这个时间再遇到同一单号，只提醒不拦。防的是手滑连录，不是隔天重录</small></span>
+        <select id="o-dupwin">
+          <option value="-1">永远拦</option>
+          <option value="30">30 分钟内</option>
+          <option value="60">1 小时内</option>
+          <option value="120">2 小时内</option>
+          <option value="240">4 小时内</option>
+          <option value="720">12 小时内</option>
+          <option value="0">从不拦</option>
+        </select><span class="chev">›</span></div>
       <div class="rowi"><span class="lab">扫到新单号时<small>当前正在录制中</small></span>
         <select id="o-switch"><option value="auto">结束上一单并开新单</option><option value="ignore">忽略，继续录当前单</option></select><span class="chev">›</span></div>
       <div class="rowi"><span class="lab">再扫一次相同单号<small>当前正在录制中</small></span>
@@ -828,12 +858,24 @@ let opts=Object.assign({
   q:1080,maxsec:120,audio:true,aec:false,wake:true,livemark:true,markstyle:'outline',marksn:true,
   tts:true,ttsno:true,ttssn:false,ttscd:true,ttsrate:1,tiptext:'',
   cmd:true,snapdelay:3,photo:true,mark:true,size:1600,beep:true,vib:true,keep:0,
+  // 重复单号拦多久。分钟；-1 = 永远拦（老行为），0 = 从不拦
+  dupwin:120,
   // 店铺/平台。一台设备一个工位发多个店铺，靠扫店铺卡切换。
   // 存的是 {id,name}：二维码里只放 id，见 parseShop 上面那段
   shops:[{id:'s1',name:'得物'},{id:'s2',name:'淘宝'}],shop:'s1',shoptts:true
 },lsGet(K.opt,{}));
 let orders=[],filt='all',recType='out';
 const isScan=()=>recType==='scan';
+/* 录像类型总表。以前十来处各写各的 map，加一个类型就要改十二个地方，
+   漏一个就会在某个角落冒出生的「in」。现在只改这里。
+   mode 是传给电脑端的协议值，tag 是文件名/目录名里的后缀。 */
+const TYPES={
+  out: {full:'发货出库',label:'打包发货',short:'发货',tag:'ship',  mode:'shipping', cls:'',    icon:'📦'},
+  in:  {full:'收货入库',label:'开箱收货',short:'收货',tag:'recv',  mode:'inbound',  cls:'inb', icon:'📥'},
+  ret: {full:'退货入库',label:'拆包退货',short:'退货',tag:'return',mode:'return',   cls:'ret', icon:'↩️'},
+  scan:{full:'扫码盘点',label:'扫码盘点',short:'盘点',tag:'scan',  mode:'inventory',cls:'scan',icon:'📋'}
+};
+const TY=t=>TYPES[t||'out']||TYPES.out;
 
 /* ===================== IndexedDB ===================== */
 const DB={db:null,
@@ -1400,6 +1442,13 @@ function parseShop(t){
   return m?m[1].trim():null;
 }
 // 老格式（直接存店铺名的字符串数组）顺手升上来
+// 重复单号拦多久。-1 永远，0 从不
+function dupWinMs(){
+  const v=+opts.dupwin;
+  if(!isFinite(v))return -1;
+  if(v<0)return -1;
+  return v*60000;
+}
 function shopList(){
   let l=Array.isArray(opts.shops)?opts.shops:[];
   let fix=false;
@@ -1742,11 +1791,30 @@ async function startOrder(no,opt){
   const scan=isScan();
   if(!standby&&!scan){toast('先点中间按钮开始待机');return}
   no=String(no).trim();
-  const old=scan?null:orders.find(o=>o.no===no);
-  if(old){
-    if(opts.dup==='block'){sfx('bad');toast('单号已录过（'+md(old.t)+'），已禁止重复录制',4000);
+  /* 判重分两件事看。
+     以前是「这个单号历史上录过就拦」，不分类型也不分时间——结果发出去的货
+     客户半路退回来，寄回的是同一个单号，退货就死活录不了。
+
+     现在：类型不同直接放行，只播报一句「这单录过发货」，这比干巴巴的
+     「重复单号」有用得多；类型相同才按时间窗口拦，窗口是防手滑重录的，
+     过了窗口就只提醒、照录。 */
+  const win=dupWinMs();
+  const same =scan?null:orders.find(o=>o.no===no&&(o.type||'out')===recType);
+  const cross=scan?null:orders.find(o=>o.no===no&&(o.type||'out')!==recType);
+  if(same&&(win<0||Date.now()-same.t<win)){
+    if(opts.dup==='block'){sfx('bad');
+      toast('这单'+TY(recType).short+'录过了（'+md(same.t)+'），已禁止重复录制',4000);
       say('重复单号，禁止录制',true);return}
-    if(opts.dup==='warn'){sfx('bad');toast('注意：此单号之前录过（'+md(old.t)+'）',3500);say('注意，重复单号',true)}
+    if(opts.dup==='warn'){sfx('bad');
+      toast('注意：这单'+TY(recType).short+'之前录过（'+md(same.t)+'）',3500);
+      say('注意，重复单号',true)}
+  }else if(same){
+    sfx('dup');toast('这单'+TY(recType).short+'以前录过（'+md(same.t)+'），继续录新的',3200);
+    say('以前录过这单，继续',true);
+  }else if(cross){
+    // 最常见的就是这条：发出去的货客户退回来了
+    sfx('dup');toast('这单录过'+TY(cross.type).short+'（'+md(cross.t)+'）',3000);
+    say('这单录过'+TY(cross.type).short,true);
   }
   const mime=pickMime();
   cur={id:Date.now(),no,type:recType,t:Date.now(),items:[],mime:scan?'':mime,
@@ -1975,8 +2043,8 @@ function updChips(){
   const scan=isScan();
   const tType=document.getElementById('tcType'),tState=document.getElementById('tcState'),
         tTime=document.getElementById('tcTime');
-  tType.textContent={out:'发货出库',ret:'退货入库',scan:'扫码盘点'}[recType]||'发货出库';
-  tType.className='tchip'+(recType==='ret'?' ret':recType==='scan'?' scan':'');
+  tType.textContent=TY(recType).full;
+  tType.className='tchip'+(TY(recType).cls?(' '+TY(recType).cls):'');
   if(cur){
     const n=cur.items.filter(i=>!i.snap).length;
     tState.textContent=(scan?('已扫 '+n+' 件'):('录制中 · '+n+' 件'))+' ⌄';
@@ -2080,7 +2148,7 @@ function renderOrders(){
   const all=orders.filter(o=>matchQ(o,q));
   document.querySelectorAll('.chip').forEach(c=>{
     const f=c.dataset.f,n=f==='all'?all.length:all.filter(o=>(o.type||'out')===f).length;
-    c.textContent=({all:'全部',out:'发货',ret:'退货',scan:'盘点'}[f])+' ('+n+')';
+    c.textContent=(f==='all'?'全部':TY(f).short)+' ('+n+')';
     c.classList.toggle('on',filt===f)});
   const list=filtered();
   document.getElementById('ordsempty').style.display=list.length?'none':'';
@@ -2093,7 +2161,7 @@ function renderOrders(){
      <ul class="ords">${g.items.map(o=>{
        const n=o.items.filter(i=>!i.snap).length,ph=o.items.filter(i=>i.ph).length;
        return `<li data-id="${o.id}">
-         <span class="bar ${(o.type||'out')==='ret'?'ret':(o.type==='scan'?'scan':'')}"></span>
+         <span class="bar ${TY(o.type).cls}"></span>
          <span class="thumb">${o.thumb?`<img src="${o.thumb}">`:'<span class="none">📦</span>'}
            ${o.dur&&o.type!=='scan'?`<span class="dur">${mmss(o.dur)}</span>`:''}
            ${o.type==='scan'?`<span class="dur">${o.items.filter(i=>!i.snap).length} 件</span>`:''}</span>
@@ -2135,7 +2203,7 @@ function syncOpts(){
   ['audio','aec','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd','showframe','shoptts']
     .forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.checked=!!opts[k]});
   [['wbrule','wbrule'],['cfmt','cfmt'],['scanrule','scanrule'],['scfmt','scfmt'],['scanarea','scanarea'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
-   ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],
+   ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],['dupwin','dupwin'],
    ['ttsrate','ttsrate']].forEach(([id,k])=>{const e=document.getElementById('o-'+id);if(e)e.value=String(opts[k])});
   ['clen','cpre','cexc','sclen','scpre','scexc','tiptext'].forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.value=opts[k]||''});
   document.querySelectorAll('.rowi.cst').forEach(r=>r.style.display=opts.wbrule==='custom'?'':'none');
@@ -2196,7 +2264,7 @@ async function openOrder(o){
       <video id="ovid" controls playsinline preload="metadata" class="ovid"
         ${o.thumb?`poster="${o.thumb}"`:''}></video></div>`:''}
     <div class="card">
-      <div class="hint">${({out:'打包发货',ret:'拆包退货',scan:'扫码盘点'}[o.type||'out'])}　${ts(o.t)}${
+      <div class="hint">${TY(o.type).label}　${ts(o.t)}${
         o.type==='scan'?'':('　时长 '+mmss(o.dur||0)+'　'+(o.q||'')+'p'+(o.audio?' · 有声':' · 静音')+(o.lm?' · 已带水印':''))}<br>
         ${items.length} 件商品 · ${o.items.filter(i=>i.ph).length} 张照片${o.type==='scan'?'':(' · 视频 '+(o.vid?kb(o.vsize):'无'))}</div>
       <div class="row" style="margin-top:11px">
@@ -2260,7 +2328,7 @@ async function openOrder(o){
 }
 function extOf(m){return /mp4/.test(m||'')?'.mp4':'.webm'}
 // 业务类型的英文标记，跟 PutPack 一致，便于电脑端按前缀分类
-const TYPE_TAG={out:'ship',ret:'return',scan:'scan'};
+const TYPE_TAG={out:'ship',in:'recv',ret:'return',scan:'scan'};   // = TYPES[x].tag，保留给老代码
 // 视频文件名：单号_ship_序列号，多件时加 _xN
 // 不用 @ —— 安卓取扩展名的正则 [a-zA-Z_0-9.\-()%] 不认 @，用了分享面板会空白
 function videoName(o,suffix){
@@ -2300,7 +2368,7 @@ function orderCsv(o){
   const q=x=>'"'+String(x==null?'':x).replace(/"/g,'""')+'"';
   const cs=cols();o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)}));
   const rows=[['单号','店铺','类型','开始时间','时长','序号','主值',...cs,'原始内容','照片','码制']];
-  o.items.forEach((i,k)=>rows.push([o.no,o.shop||'',{out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'],ts(o.t),
+  o.items.forEach((i,k)=>rows.push([o.no,o.shop||'',TY(o.type).short,ts(o.t),
     mmss(o.dur||0),k+1,i.v,...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'有':'',i.fmt||'']));
   return '\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n');
 }
@@ -2328,7 +2396,7 @@ async function saveAll(o){
       zip.file('清单.csv',orderCsv(o));
       zip.file('说明.txt',
         '单号：'+o.no+'\r\n'+
-        '类型：'+({out:'打包发货',ret:'拆包退货',scan:'扫码盘点'}[o.type||'out'])+'\r\n'+
+        '类型：'+TY(o.type).label+'\r\n'+
         '开始：'+ts(o.t)+'\r\n'+
         (o.dur?('时长：'+mmss(o.dur)+'\r\n'):'')+
         '商品：'+o.items.filter(i=>!i.snap).length+' 件\r\n'+
@@ -2704,7 +2772,7 @@ function csvAll(list){
   const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
   const cs=cols();list.forEach(o=>o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)})));
   const rows=[['单号','店铺','类型','开始时间','时长','序号','主值',...cs,'原始内容','有照片','码制']];
-  list.forEach(o=>{const tp={out:'发货',ret:'退货',scan:'盘点'}[o.type||'out'],sh=o.shop||'';
+  list.forEach(o=>{const tp=TY(o.type).short,sh=o.shop||'';
     if(!o.items.length)rows.push([o.no,sh,tp,ts(o.t),mmss(o.dur||0),'','',...cs.map(()=>''),'','','']);
     o.items.forEach((i,k)=>rows.push([o.no,sh,tp,ts(o.t),mmss(o.dur||0),k+1,i.v,
       ...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'是':'',i.fmt||'']))});
@@ -3003,6 +3071,7 @@ async function enterRec(type){
   if(!standby)await startStandby();
 }
 document.getElementById('go-out').onclick=()=>enterRec('out');
+document.getElementById('go-in').onclick=()=>enterRec('in');
 document.getElementById('go-ret').onclick=()=>enterRec('ret');
 document.getElementById('go-scan').onclick=()=>enterRec('scan');
 document.getElementById('goset').onclick=()=>show('set');
@@ -3396,7 +3465,8 @@ document.getElementById('scaninput').addEventListener('keydown',async e=>{
       if(k==='aec'||k==='audio')toast('下次开摄像头时生效',2400)}});
 const selMap=[['wbrule','wbrule',v=>v],['cfmt','cfmt',v=>v],['scanrule','scanrule',v=>v],['scfmt','scfmt',v=>v],['scanarea','scanarea',v=>v],['dup','dup',v=>v],['switch','sw',v=>v],
   ['samestop','samestop',v=>+v],['q','q',v=>+v],['maxsec','maxsec',v=>+v],['markstyle','markstyle',v=>v],
-  ['snapdelay','snapdelay',v=>+v],['size','size',v=>+v],['keep','keep',v=>+v],['ttsrate','ttsrate',v=>+v]];
+  ['snapdelay','snapdelay',v=>+v],['size','size',v=>+v],['keep','keep',v=>+v],['ttsrate','ttsrate',v=>+v],
+  ['dupwin','dupwin',v=>+v]];
 selMap.forEach(([id,k,f])=>{const e=document.getElementById('o-'+id);
   if(e)e.onchange=ev=>{opts[k]=f(ev.target.value);lsSet(K.opt,opts);syncOpts();updUI();
     if(id==='q'&&standby&&!cur)toast('画质下次开待机时生效',2400)}});

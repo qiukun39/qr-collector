@@ -1,12 +1,12 @@
 {
   "_说明": "装箱台的版本清单。电脑端每 6 小时读一次这个文件来判断有没有新版。放在公开站点上是因为电脑端仓库是私有的，GitHub 接口要令牌，而令牌不能塞进发出去的程序里。",
   "desktop": {
-    "version": "0.13.0",
+    "version": "0.13.1",
     "page": "https://github.com/qiukun39/packdesk-desktop/releases/latest",
-    "notes": "加「收货」类型（开箱验货不用再塞进退货里），要配 App 4.3"
+    "notes": "修：下拉框点开就没、标签要点两次；开机自启升级后失效（装上即恢复）"
   },
   "app": {
-    "version": "4.3",
-    "url": "https://qiukun39.github.io/qr-collector/packdesk-4.3.apk"
+    "version": "4.4",
+    "url": "https://qiukun39.github.io/qr-collector/packdesk-4.4.apk"
   }
 }

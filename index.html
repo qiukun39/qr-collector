@@ -858,10 +858,15 @@ async function restoreOpts(){
   }catch(e){}
 }
 const DEF_RULES=[
+  /* prod = 扫到这条规则命中的码时，给这件商品打的产品标签。留空就不打。
+
+     下面三条是通用的 GS1 应用标识符（241/21/250），不是 Whoop 专有的——
+     别的牌子用 GS1 贴标也会命中。这里写 Whoop 是因为你现在只有这一家用
+     GS1；以后进了别的 GS1 品牌，去规则页把这条拆开按前缀分流。 */
   {id:1,col:'客户零件号',pattern:'(?:^|\\x1d|<GS>)241([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:false,
-   sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
+   prod:'Whoop',sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
   {id:2,col:'序列号',pattern:'(?:^|\\x1d|<GS>)21([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:true,
-   sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
+   prod:'Whoop',sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
   {id:3,col:'二级序列号',pattern:'(?:^|\\x1d|<GS>)250([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:false,
    sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
   /* Oura Ring 盒子上那个 DataMatrix（不是 QR，普通扫码 App 多半认不出）。
@@ -876,9 +881,9 @@ const DEF_RULES=[
      第 5-6 位是戒指尺寸、十六进制，10 寸就是 0A，11 寸 0B……
      用 \d 的话 10 寸以上全部扫不出来。 */
   {id:4,col:'序列号',pattern:'^([0-9A-Z]{16})\\|[0-9A-Z]{16}$',flags:'',tpl:'$1',on:true,primary:false,
-   sample:'50450A2625164524|50380A2625138022'},
+   prod:'Oura',sample:'50450A2625164524|50380A2625138022'},
   {id:5,col:'二级序列号',pattern:'^[0-9A-Z]{16}\\|([0-9A-Z]{16})$',flags:'',tpl:'$1',on:true,primary:false,
-   sample:'50450A2625164524|50380A2625138022'}
+   prod:'Oura',sample:'50450A2625164524|50380A2625138022'}
 ];
 let rules=lsGet(K.rul,null)||DEF_RULES;
 let opts=Object.assign({
@@ -1142,14 +1147,24 @@ function primaryCol(){const p=rules.find(r=>r.on&&r.primary&&r.col);return p?p.c
 function applyTpl(tpl,m){let o=tpl||'$0';
   o=o.replace(/\$\{(\w+)\}/g,(_,n)=>(m.groups&&m.groups[n]!=null)?m.groups[n]:'');
   return o.replace(/\$(\d+)/g,(_,i)=>m[+i]!=null?m[+i]:'').trim()}
-function purify(raw){raw=String(raw);const f={};
+function purify(raw){raw=String(raw);const f={};let prod='';
   for(const r of rules){
-    if(!r.on||!r.pattern||!r.col||f[r.col]!=null)continue;
+    if(!r.on||!r.pattern||!r.col)continue;
     let re;try{re=new RegExp(r.pattern,r.flags||'')}catch(e){continue}
     const m=raw.match(re);if(!m)continue;
+    // 产品名看「命中没命中」，不看这一列填没填过——同一个产品的几条规则
+    // 共用一列时（Oura 的两个序列号就是），后面那条照样该报产品
+    if(!prod&&r.prod)prod=String(r.prod).trim();
+    if(f[r.col]!=null)continue;
     const v=applyTpl(r.tpl,m);if(v==='')continue;f[r.col]=v}
   const pc=primaryCol(),matched=Object.keys(f).length>0;
-  return {f,matched,v:(pc&&f[pc]!=null)?f[pc]:(matched?f[Object.keys(f)[0]]:raw.trim())}}
+  return {f,matched,prod,v:(pc&&f[pc]!=null)?f[pc]:(matched?f[Object.keys(f)[0]]:raw.trim())}}
+// 一单里出现过的产品，去重。一箱混发就是多个
+function orderProds(o){
+  const set=[];
+  (o&&o.items||[]).forEach(i=>{ if(i.prod&&!set.includes(i.prod))set.push(i.prod) });
+  return set;
+}
 
 /* ===================== 声音 / 语音 ===================== */
 let ac,mixDest=null,micSrc=null;
@@ -2239,7 +2254,8 @@ async function addItem(raw,fmt){
     if(navigator.vibrate)navigator.vibrate([90,60,90]);
     toast('重复：'+p.v+'（本单已有）',2200);say('重复扫描',true);return}
   const idx=cur.items.length+1;
-  const it={v:p.v,f:p.f,raw:String(raw),matched:p.matched,t:Date.now(),fmt:fmt||'',ph:null,thumb:null};
+  const it={v:p.v,f:p.f,raw:String(raw),matched:p.matched,prod:p.prod||'',
+            t:Date.now(),fmt:fmt||'',ph:null,thumb:null};
   if(cur.photo){
     const s=await shoot([ts(it.t),cur.no+'   '+p.v]);
     if(s&&s.blob){const pid=cur.id+'#'+idx;await DB.put('photos',{id:pid,blob:s.blob});
@@ -2440,18 +2456,25 @@ function renderRules(){
     <label class="fld"><span>正则</span><input type="text" class="mono" value="${esc(r.pattern||'')}" data-f="pattern" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
     <div class="row"><label class="fld" style="flex:2"><span>输出模板</span><input type="text" class="mono" value="${esc(r.tpl||'$0')}" data-f="tpl" autocapitalize="off" spellcheck="false"></label>
       <label class="fld" style="flex:1"><span>flags</span><input type="text" class="mono" value="${esc(r.flags||'')}" data-f="flags" placeholder="i" autocapitalize="off" spellcheck="false"></label></div>
+    <label class="fld"><span>产品（命中这条规则就给这件商品打上，留空不打）</span>
+      <input type="text" value="${esc(r.prod||'')}" data-f="prod" placeholder="Oura / Whoop" autocapitalize="off" spellcheck="false"></label>
     <div class="row"><button class="btn sm" data-act="up">上移</button><button class="btn sm" data-act="down">下移</button><button class="btn sm bad" data-act="del">删除</button></div>
     <div class="test"><label class="fld"><span>测试输入</span><input type="text" class="mono" data-f="sample" value="${esc(r.sample||'')}" placeholder="分隔符可直接写 &lt;GS&gt;" autocapitalize="off" spellcheck="false"></label>
       <div class="out" id="out${i}"></div></div></div>`).join('');
   rules.forEach((r,i)=>testRule(i));
-  const el=document.getElementById('fieldsum');if(el)el.textContent=cols().join(' · ')||'未配置';
+  const el=document.getElementById('fieldsum');
+  if(el){
+    const ps=[...new Set(rules.filter(r=>r.on&&r.prod).map(r=>String(r.prod).trim()))];
+    el.textContent=(cols().join(' · ')||'未配置')+(ps.length?('　产品：'+ps.join('、')):'');
+  }
 }
 function testRule(i){const r=rules[i],out=document.getElementById('out'+i);if(!out)return;
   if(!r.sample){out.innerHTML='<span style="color:var(--dim)">—</span>';return}
   let re;try{re=new RegExp(r.pattern,r.flags||'')}catch(e){out.innerHTML='<span style="color:var(--red)">正则语法错误：'+esc(e.message)+'</span>';return}
   const m=String(r.sample).match(re);
   if(!m){out.innerHTML='<span style="color:var(--warn)">不匹配</span>';return}
-  out.innerHTML='→ <span style="color:var(--green);font-weight:700">'+esc(applyTpl(r.tpl,m))+'</span>'}
+  out.innerHTML='→ <span style="color:var(--green);font-weight:700">'+esc(applyTpl(r.tpl,m))+'</span>'
+    +(r.prod?('　<span style="color:var(--blue)">产品：'+esc(r.prod)+'</span>'):'')}
 function syncOpts(){
   ['audio','aec','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd','showframe','shoptts']
     .forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.checked=!!opts[k]});
@@ -2620,8 +2643,8 @@ async function collectFiles(o){
 function orderCsv(o){
   const q=x=>'"'+String(x==null?'':x).replace(/"/g,'""')+'"';
   const cs=cols();o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)}));
-  const rows=[['单号','店铺','类型','开始时间','时长','序号','主值',...cs,'原始内容','照片','码制']];
-  o.items.forEach((i,k)=>rows.push([o.no,o.shop||'',TY(o.type).short,ts(o.t),
+  const rows=[['单号','店铺','类型','产品','开始时间','时长','序号','主值',...cs,'原始内容','照片','码制']];
+  o.items.forEach((i,k)=>rows.push([o.no,o.shop||'',TY(o.type).short,i.prod||'',ts(o.t),
     mmss(o.dur||0),k+1,i.v,...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'有':'',i.fmt||'']));
   return '\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n');
 }
@@ -3024,10 +3047,10 @@ async function burn(o){
 function csvAll(list){
   const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
   const cs=cols();list.forEach(o=>o.items.forEach(i=>Object.keys(i.f||{}).forEach(k=>{if(!cs.includes(k))cs.push(k)})));
-  const rows=[['单号','店铺','类型','开始时间','时长','序号','主值',...cs,'原始内容','有照片','码制']];
+  const rows=[['单号','店铺','类型','产品','开始时间','时长','序号','主值',...cs,'原始内容','有照片','码制']];
   list.forEach(o=>{const tp=TY(o.type).short,sh=o.shop||'';
-    if(!o.items.length)rows.push([o.no,sh,tp,ts(o.t),mmss(o.dur||0),'','',...cs.map(()=>''),'','','']);
-    o.items.forEach((i,k)=>rows.push([o.no,sh,tp,ts(o.t),mmss(o.dur||0),k+1,i.v,
+    if(!o.items.length)rows.push([o.no,sh,tp,'',ts(o.t),mmss(o.dur||0),'','',...cs.map(()=>''),'','','']);
+    o.items.forEach((i,k)=>rows.push([o.no,sh,tp,i.prod||'',ts(o.t),mmss(o.dur||0),k+1,i.v,
       ...cs.map(c=>(i.f&&i.f[c]!=null)?i.f[c]:''),visRaw(i.raw||''),i.ph?'是':'',i.fmt||'']))});
   return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
 }

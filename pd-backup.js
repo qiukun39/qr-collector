@@ -376,10 +376,16 @@
     }].concat(items.map(function (i) {
       return {
         code: i.v, kind: 'serial',
+        product: i.prod || undefined,   // 扫到的码命中了哪条规则就带哪个产品
         at: new Date(i.t).toISOString(),
         offsetMs: Math.max(0, i.t - order.t)
       };
     }));
+    // 这一单出现过的产品，去重。一箱混发就是多个
+    var prods = [];
+    items.forEach(function (i) {
+      if (i.prod && prods.indexOf(i.prod) < 0) prods.push(i.prod);
+    });
 
     var endedAt = order.tEnd || (order.t + (order.dur || 0));
     return await request('/api/pd/sessions', {
@@ -391,6 +397,7 @@
         mode: ({ out: 'shipping', in: 'inbound', ret: 'return', scan: 'inventory' })[order.type || 'out']
               || 'shipping',
         shop: order.shop || undefined,
+        products: prods.length ? prods : undefined,
         startedAt: new Date(order.t).toISOString(),
         endedAt: new Date(endedAt).toISOString(),
         durationMs: order.dur || 0,

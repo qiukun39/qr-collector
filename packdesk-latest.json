@@ -1,12 +1,12 @@
 {
   "_说明": "装箱台的版本清单。电脑端每 6 小时读一次这个文件来判断有没有新版。放在公开站点上是因为电脑端仓库是私有的，GitHub 接口要令牌，而令牌不能塞进发出去的程序里。",
   "desktop": {
-    "version": "0.14.0",
+    "version": "0.15.0",
     "page": "https://github.com/qiukun39/packdesk-desktop/releases/latest",
-    "notes": "店铺改成快捷标签排在类型后面；类型数字跟着店铺联动；窗口记住大小"
+    "notes": "产品分类：扫到 Oura/Whoop 序列号自动打产品标签，可按产品筛"
   },
   "app": {
-    "version": "4.5",
-    "url": "https://qiukun39.github.io/qr-collector/packdesk-4.5.apk"
+    "version": "4.6",
+    "url": "https://qiukun39.github.io/qr-collector/packdesk-4.6.apk"
   }
 }

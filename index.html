@@ -533,6 +533,15 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
         <select id="o-switch"><option value="auto">结束上一单并开新单</option><option value="ignore">忽略，继续录当前单</option></select><span class="chev">›</span></div>
       <div class="rowi"><span class="lab">再扫一次相同单号<small>当前正在录制中</small></span>
         <select id="o-samestop"><option value="0">忽略</option><option value="1">停止并保存</option></select><span class="chev">›</span></div>
+      <div class="rowi"><span class="lab">闲置多久自动关摄像头<small>关掉最省电。切到后台也会自动关，回来点一下继续</small></span>
+        <select id="o-idlequit">
+          <option value="1">1 分钟</option>
+          <option value="2">2 分钟</option>
+          <option value="3">3 分钟</option>
+          <option value="5">5 分钟</option>
+          <option value="10">10 分钟</option>
+          <option value="0">不自动关</option>
+        </select><span class="chev">›</span></div>
       <div class="rowi"><span class="lab">扫描区域<small>限定取景框可避免误扫到画面里别的码</small></span>
         <select id="o-scanarea"><option value="full">整个画面</option><option value="roi">仅取景框内</option></select><span class="chev">›</span></div>
       <div class="rowi"><span class="lab">显示取景框<small>限定取景框时强制显示</small></span>
@@ -625,6 +634,7 @@ ul.items img{width:34px;height:34px;border-radius:7px;object-fit:cover;flex:0 0 
       <div class="rowi"><span class="lab">照片长边</span>
         <select id="o-size"><option value="1024">1024px</option><option value="1600">1600px</option><option value="2048">2048px</option></select><span class="chev">›</span></div>
       <div class="rowi" id="row-fields"><span class="lab">提取字段规则<small id="fieldsum"></small></span><span class="chev">›</span></div>
+      <div class="rowi" id="row-probe"><span class="lab">扫一扫看看是什么<small>显示原始内容、码制、长度，并告诉你哪条规则命中了</small></span><span class="chev">›</span></div>
     </div>
 
     <div class="grp">数据</div>
@@ -853,7 +863,22 @@ const DEF_RULES=[
   {id:2,col:'序列号',pattern:'(?:^|\\x1d|<GS>)21([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:true,
    sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
   {id:3,col:'二级序列号',pattern:'(?:^|\\x1d|<GS>)250([0-9A-Za-z-]+)',flags:'',tpl:'$1',on:true,primary:false,
-   sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'}
+   sample:'<GS>241123-456-789<GS>211AB2345678<GS>250C1DE2345678'},
+  /* Oura Ring 盒子上那个 DataMatrix（不是 QR，普通扫码 App 多半认不出）。
+     里头是两个模块的序列号用竖线隔开，顺序和盒子上印的相反：
+       2046072628024065|2038072628007944
+       └─ 盒上 OA14 ─┘ └─ 盒上 OA13 ─┘
+
+     **不能写成 \d{16}**。实测三个盒子（7/9/10 寸）：
+       7 寸  2038 07 2628 007944
+       9 寸  5038 09 2630 220965
+       10寸  5038 0A 2625 138022   ← 这里是字母 A
+     第 5-6 位是戒指尺寸、十六进制，10 寸就是 0A，11 寸 0B……
+     用 \d 的话 10 寸以上全部扫不出来。 */
+  {id:4,col:'序列号',pattern:'^([0-9A-Z]{16})\\|[0-9A-Z]{16}$',flags:'',tpl:'$1',on:true,primary:false,
+   sample:'50450A2625164524|50380A2625138022'},
+  {id:5,col:'二级序列号',pattern:'^[0-9A-Z]{16}\\|([0-9A-Z]{16})$',flags:'',tpl:'$1',on:true,primary:false,
+   sample:'50450A2625164524|50380A2625138022'}
 ];
 let rules=lsGet(K.rul,null)||DEF_RULES;
 let opts=Object.assign({
@@ -868,6 +893,8 @@ let opts=Object.assign({
   cmd:true,snapdelay:3,photo:true,mark:true,size:1600,beep:true,vib:true,keep:0,
   // 重复单号拦多久。分钟；-1 = 永远拦（老行为），0 = 从不拦
   dupwin:120,
+  // 闲置多少分钟自动关摄像头。0 = 不自动关（老行为）
+  idlequit:3,
   // 店铺/平台。一台设备一个工位发多个店铺，靠扫店铺卡切换。
   // 存的是 {id,name}：二维码里只放 id，见 parseShop 上面那段
   shops:[{id:'s1',name:'得物'},{id:'s2',name:'淘宝'}],shop:'s1',shoptts:true
@@ -1098,6 +1125,11 @@ function ask(title,msg,yes,no,icon){
 async function copy(s){if(!s)return;try{await navigator.clipboard.writeText(s);toast('已复制')}catch(e){
   const t=document.createElement('textarea');t.value=s;t.style.position='fixed';t.style.opacity='0';
   document.body.appendChild(t);t.select();try{document.execCommand('copy');toast('已复制')}catch(_){}t.remove()}}
+// 截断就明说截断了。不说的话人会以为扫出来的原文就这么长
+function cut(t,n){
+  t=String(t??'');n=n||56;
+  return t.length<=n?t:(t.slice(0,n)+'…（共 '+t.length+' 字）');
+}
 function dayLabel(n){const d=new Date(n),t=new Date();
   const same=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
   const y=new Date(t.getTime()-86400000);
@@ -1284,6 +1316,17 @@ function voiceLabel(v){
   return {name:v.name,area:area};
 }
 
+/* 切到后台/息屏就把摄像头放掉。以前切走之后循环照跑、摄像头照开，
+   人以为「我都没在用了」，其实还在耗电发热。
+   正在录像时绝对不碰——那会直接把录制毁掉。 */
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden||!standby||cur)return;
+  quitStandby().then(()=>{
+    const tip=document.getElementById('camofftip');
+    if(tip)tip.innerHTML='切到后台时已自动关掉摄像头省电<br>点下方按钮继续';
+  }).catch(()=>{});
+});
+
 // Chrome 长时间不说话会把引擎挂起，定期 resume 保活
 setInterval(()=>{try{
   if(opts.tts&&'speechSynthesis' in window&&!speechSynthesis.speaking)speechSynthesis.resume()
@@ -1313,6 +1356,12 @@ async function ensureEngine(){
 function qSize(){const q=+opts.q||1080;return q>=1080?{w:1920,h:1080}:q>=720?{w:1280,h:720}:{w:854,h:480}}
 async function startStandby(){
   if(standby)return;
+  lastHit=Date.now();            // 刚开机别被上一轮的闲置计时误伤
+  if(idleQuit){
+    idleQuit=false;
+    const tip=document.getElementById('camofftip');
+    if(tip)tip.innerHTML='点下方按钮开启<br>开启后对准快递面单即可自动录像';
+  }
   try{engine=await ensureEngine()}catch(e){toast('扫码引擎不可用：'+e.message,3000);return}
   const s=qSize();
   try{
@@ -1446,6 +1495,23 @@ function roiCanvas(){
   rcx.drawImage(video,sx,sy,sw,sh,0,0,rcv.width,rcv.height);
   return rcv;
 }
+/* 扫码循环的节奏。
+
+   以前是死的 120ms 一轮（约 8fps），每轮都 getImageData 整张画面再跑一遍
+   ZXing。发完货把 App 丢在录像页，它就一直这么烧——摄像头常开加满速解码，
+   手机不热才怪。
+
+   现在：扫到东西就全速，越闲越慢；录像中永远全速（这条是前提，
+   正在录的时候任何省电都不能做）。 */
+let lastHit=0,idleQuit=false;
+function scanInterval(){
+  if(cur)return 120;
+  const idle=Date.now()-(lastHit||0);
+  if(idle<20000)return 120;
+  if(idle<60000)return 400;
+  if(idle<180000)return 800;
+  return 1500;
+}
 async function loop(){
   while(standby){
     try{
@@ -1479,6 +1545,7 @@ async function loop(){
           }
         }
         const now=Date.now();
+        if(codes.length)lastHit=now;      // 扫到东西就回全速
         for(const c of codes){
           const prev=seen.get(c.text)||0,gap=now-prev;
           seen.set(c.text,now);if(seen.size>400)seen.clear();
@@ -1487,7 +1554,17 @@ async function loop(){
         }
       }
     }catch(e){}
-    await new Promise(r=>setTimeout(r,120));
+    // 闲太久就把摄像头整个关掉。降频只省一点 CPU，摄像头本身才是大头
+    const qm=+opts.idlequit||0;
+    if(qm>0&&!cur&&lastHit&&Date.now()-lastHit>qm*60000){
+      idleQuit=true;
+      await quitStandby();
+      const tip=document.getElementById('camofftip');
+      if(tip)tip.innerHTML='闲了 '+qm+' 分钟没扫到东西，已自动关掉摄像头省电<br>点下方按钮继续';
+      toast('闲置已自动关摄像头省电，点一下继续',3200);
+      break;
+    }
+    await new Promise(r=>setTimeout(r,scanInterval()));
   }
 }
 
@@ -1680,6 +1757,42 @@ function openShopManage(){
 }
 /* 挑嗓音。安卓自带的那个默认发音人机械味最重，但大多数机器上还装着
    别的（讯飞、三星、Google 的），只是从来没人去选过。 */
+/* 「扫一扫看看是什么」。
+   碰到不认识的码时，以前只能从 toast 里看个开头——而 toast 还截断，
+   Oura 那个 33 字的码看到的是残缺的一半，害人以为是扫码器的问题。
+   这里把原文完整摆出来，连码制和长度一起，还告诉你哪条规则命中了。 */
+async function probeScan(){
+  const r=await scanOnce('扫一扫看看是什么','对着任何码扫一下，原样显示里面的内容',true);
+  if(!r||!r.text)return;
+  const raw=String(r.text),fmt=r.fmt||'未知';
+  const p=purify(raw);
+  const hits=Object.keys(p.f||{});
+  const box=document.getElementById('shoppick');
+  document.getElementById('shoptitle').textContent='扫到的内容';
+  document.getElementById('shopsub').textContent='原文一个字都没省。要加识别规则就把这些发给我。';
+  document.getElementById('shopadd').style.display='none';
+  const row=(k,v)=>`<div class="rowi" style="align-items:flex-start">
+    <span class="lab" style="flex:0 0 76px;color:var(--dim)">${esc(k)}</span>
+    <span style="flex:1;min-width:0;word-break:break-all;font-size:13.5px">${v}</span></div>`;
+  box.innerHTML=
+    row('原始内容',`<span class="mono" style="font-family:ui-monospace,Menlo,monospace">${esc(visRaw(raw))}</span>`)+
+    row('码制',esc(fmt)+(FMT2D.test(fmt)?'（二维码类）':FMT1D.test(fmt)?'（条形码类）':''))+
+    row('长度',raw.length+' 个字符')+
+    row('识别结果',hits.length
+        ?('<b style="color:var(--green)">命中规则</b><br>'+hits.map(k=>
+            `${esc(k)} = <b>${esc(p.f[k])}</b>`).join('<br>'))
+        :'<b style="color:var(--warn)">没有规则命中</b><br><span class="hint">所以扫商品时会被忽略。去「提取字段规则」加一条，或者把上面的原始内容发给开发</span>')+
+    `<div style="display:flex;gap:9px;margin-top:12px">
+       <button class="btn" id="probecopy" style="flex:1">复制原始内容</button>
+       <button class="btn" id="probeagain" style="flex:1">再扫一个</button>
+     </div>`;
+  document.getElementById('shopbox').classList.add('on');
+  document.getElementById('probecopy').onclick=()=>copy(raw);
+  document.getElementById('probeagain').onclick=()=>{
+    document.getElementById('shopbox').classList.remove('on');
+    setTimeout(probeScan,250);
+  };
+}
 async function openVoicePick(){
   const box=document.getElementById('shoppick');
   document.getElementById('shoptitle').textContent='挑一个嗓音';
@@ -1822,8 +1935,10 @@ async function handle(text,fmt){
     if(opts.skiptip){
       sfx('dup');
       const why=skipWhy(text,fmt);
-      toast(isScan()?('已忽略（不符合盘点识别规则）：'+String(text).slice(0,24))
-                    :('已过滤：'+String(text).slice(0,24)+(why?('　'+why):'')),
+      // 以前截到 24 个字就完了，而且不说还有后文——Oura 那个码正好 33 个字，
+      // 看到的是「…|2038072」，害人以为扫出来就是残缺的
+      toast(isScan()?('已忽略（不符合盘点识别规则）：'+cut(text))
+                    :('已过滤：'+cut(text)+(why?('　'+why):'')),
             why?3600:2000);
     }
     return;
@@ -2341,7 +2456,7 @@ function syncOpts(){
   ['audio','aec','wake','livemark','marksn','cmd','photo','mark','beep','vib','skiptip','tts','ttsno','ttssn','ttscd','showframe','shoptts']
     .forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.checked=!!opts[k]});
   [['wbrule','wbrule'],['cfmt','cfmt'],['scanrule','scanrule'],['scfmt','scfmt'],['scanarea','scanarea'],['dup','dup'],['switch','sw'],['samestop','samestop'],['q','q'],
-   ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],['dupwin','dupwin'],
+   ['maxsec','maxsec'],['markstyle','markstyle'],['snapdelay','snapdelay'],['size','size'],['keep','keep'],['dupwin','dupwin'],['idlequit','idlequit'],
    ['ttsrate','ttsrate'],['ttspitch','ttspitch']].forEach(([id,k])=>{const e=document.getElementById('o-'+id);if(e)e.value=String(opts[k])});
   ['clen','cpre','cexc','sclen','scpre','scexc','tiptext'].forEach(k=>{const e=document.getElementById('o-'+k);if(e)e.value=opts[k]||''});
   document.querySelectorAll('.rowi.cst').forEach(r=>r.style.display=opts.wbrule==='custom'?'':'none');
@@ -3132,7 +3247,9 @@ async function exportCardsPdf(){
 
 // 一次性扫码：打开摄像头，扫到第一个码就关掉并返回内容。
 // 不动录像那套状态，用完即走。
-async function scanOnce(title,tip){
+// withFmt=true 时返回 {text,fmt} 而不是光一个字符串。诊断页要知道码制——
+// 「普通扫码 App 扫不出」十有八九就是因为它是 DataMatrix 不是 QR
+async function scanOnce(title,tip,withFmt){
   let eng;
   try{eng=await ensureEngine()}catch(e){toast('扫码引擎不可用：'+e.message,3000);return null}
   const box=document.getElementById('scan1'),vid=document.getElementById('s1cam');
@@ -3149,6 +3266,7 @@ async function scanOnce(title,tip){
   box.classList.add('on');
   const stop=()=>{box.classList.remove('on');
     try{st.getTracks().forEach(t=>t.stop())}catch(e){}vid.srcObject=null};
+  let lastFmt='';
   return await new Promise(res=>{
     let done=false;
     const finish=v=>{if(done)return;done=true;stop();res(v)};
@@ -3161,7 +3279,7 @@ async function scanOnce(title,tip){
             let txt=null;
             if(eng==='native'){
               const r=await detector.detect(vid);
-              if(r&&r.length)txt=r[0].rawValue;
+              if(r&&r.length){txt=r[0].rawValue;lastFmt=fmtName(r[0].format)}
             }else{
               c=c||document.createElement('canvas');
               const w=vid.videoWidth,h=vid.videoHeight;
@@ -3175,11 +3293,11 @@ async function scanOnce(title,tip){
                 try{const bmp=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(
                   new ZXing.RGBLuminanceSource(lum,c.width,c.height)));
                   const r=zxHints?zxing.decode(bmp,zxHints):zxing.decode(bmp);
-                  if(r)txt=r.getText();}catch(e){}
+                  if(r){txt=r.getText();lastFmt=fmtName(r.getBarcodeFormat())}}catch(e){}
                 zxing.reset&&zxing.reset();
               }
             }
-            if(txt){sfx('item');finish(txt);return}
+            if(txt){sfx('item');finish(withFmt?{text:txt,fmt:lastFmt||''}:txt);return}
           }
         }catch(e){}
         await new Promise(r=>setTimeout(r,120));
@@ -3218,6 +3336,7 @@ document.getElementById('shopclose').onclick=()=>document.getElementById('shopbo
 document.getElementById('shopadd').onclick=()=>addShopFlow();
 document.getElementById('row-shops').onclick=()=>openShopManage();
 document.getElementById('row-voice').onclick=()=>openVoicePick();
+document.getElementById('row-probe').onclick=()=>probeScan();
 document.getElementById('o-shop').onchange=e=>{ if(e.target.value)setShop(e.target.value) };
 document.getElementById('row-shopcards').onclick=async()=>{show('cards');await renderCards('shop')};
 document.getElementById('gofields').onclick=()=>{renderRules();show('fields')};
@@ -3592,7 +3711,7 @@ document.getElementById('scaninput').addEventListener('keydown',async e=>{
   if(!v)return;
   if(!cur){toast('先点中间按钮新建任务');sfx('bad');return}
   if(isScan()&&!scanMatch(v,'')){
-    sfx('dup');toast('已忽略（不符合盘点识别规则）：'+v.slice(0,24),2400);return}
+    sfx('dup');toast('已忽略（不符合盘点识别规则）：'+cut(v),2400);return}
   await addItem(v,'keyboard');
 });
 
@@ -3605,7 +3724,7 @@ document.getElementById('scaninput').addEventListener('keydown',async e=>{
 const selMap=[['wbrule','wbrule',v=>v],['cfmt','cfmt',v=>v],['scanrule','scanrule',v=>v],['scfmt','scfmt',v=>v],['scanarea','scanarea',v=>v],['dup','dup',v=>v],['switch','sw',v=>v],
   ['samestop','samestop',v=>+v],['q','q',v=>+v],['maxsec','maxsec',v=>+v],['markstyle','markstyle',v=>v],
   ['snapdelay','snapdelay',v=>+v],['size','size',v=>+v],['keep','keep',v=>+v],['ttsrate','ttsrate',v=>+v],
-  ['dupwin','dupwin',v=>+v],['ttspitch','ttspitch',v=>+v]];
+  ['dupwin','dupwin',v=>+v],['ttspitch','ttspitch',v=>+v],['idlequit','idlequit',v=>+v]];
 selMap.forEach(([id,k,f])=>{const e=document.getElementById('o-'+id);
   if(e)e.onchange=ev=>{opts[k]=f(ev.target.value);lsSet(K.opt,opts);syncOpts();updUI();
     if(id==='q'&&standby&&!cur)toast('画质下次开待机时生效',2400)}});
